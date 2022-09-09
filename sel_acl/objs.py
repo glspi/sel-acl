@@ -1,6 +1,7 @@
 import ipaddress
 import re
 from dataclasses import dataclass, field
+import sys
 
 import ciscoconfparse
 
@@ -101,18 +102,23 @@ class ACE:
     dst_cidr: str = field(default_factory=str)
 
     def __post_init__(self):
+        # Initialize ACE in a more reusable way
         if self.remark:
             self.remark = self.remark.strip("remark ")
         if self.src_group:
             self.src_group = self.src_group.strip("addrgroup ")
         if self.src_host:
-            self.src_host = self.src_host.strip("host ") + "/32"
+            self.src_host = self.src_host.strip("host ")
+            if self.src_host not in ("0.0.0.0", "255.255.255.255"):
+                self.src_host += "/32"
         if self.src_portgroup:
             self.src_portgroup = self.src_portgroup.strip("portgroup ")
         if self.dst_group:
             self.dst_group = self.dst_group.strip("addrgroup ")
         if self.dst_host:
-            self.dst_host = self.dst_host.strip("host ") + "/32"
+            self.dst_host = self.dst_host.strip("host ")
+            if self.dst_host not in ("0.0.0.0", "255.255.255.255"):
+                self.dst_host += "/32"
         if self.dst_portgroup:
             self.dst_portgroup = self.dst_portgroup.strip("portgroup ")
 
@@ -137,6 +143,69 @@ class ACE:
                 print("ACL is 'incorrect', host bits are set in network, CIDR could not be created.")
                 print(self)
 
+    def output_cidr(self):
+        if self.remark:
+            return " " + self.remark + "\n"
+
+        output = " "
+        output += f"{self.action} {self.protocol} "
+
+        # SOURCE ADDRESS
+        if self.src_group:
+            output += f"addrgroup {self.src_group} "
+        elif self.src_any:
+            output += "any "
+        elif self.src_host:
+            output += f"{self.src_host} "
+        elif self.src_cidr:
+            output += f"{self.src_cidr} "
+        else:
+            print(f"Error, no source found in ACE {self}.")
+            sys.exit()
+        # SOURCE PORT
+        if self.src_portgroup:
+            output += f"portgroup {self.src_portgroup} "
+        elif self.src_port_match:
+            output += f"{self.src_port_match} "
+        if self.src_port_start and self.src_port_end:
+            output += f"{self.src_port_start} + {self.src_port_end} "
+        elif self.src_port:
+            output += f"{self.src_port} "
+
+        # DESTINATION
+        if self.dst_group:
+            output += f"addrgroup {self.dst_group} "
+        elif self.dst_any:
+            output += "any "
+        elif self.dst_host:
+            output += f"{self.dst_host} "
+        elif self.dst_cidr:
+            output += f"{self.dst_cidr} "
+        else:
+            print(f"Error, no destination found in ACE {self}.")
+            sys.exit()
+        # DESTINATION PORT
+        if self.dst_portgroup:
+            output += f"portgroup {self.dst_portgroup} "
+        elif self.dst_port_match:
+            output += f"{self.dst_port_match} "
+        if self.dst_port_start and self.dst_port_end:
+            output += f"{self.dst_port_start} + {self.dst_port_end} "
+        elif self.dst_port:
+            output += f"{self.dst_port} "
+
+        # EXTRAS (flags/icmp/log)
+        if self.flags_match:
+            output += f"{self.flags_match} "
+        if self.tcp_flag:
+            output += f"{self.tcp_flag} "
+        if self.icmp_type:
+            output += f"{self.icmp_type} "
+        if self.log:
+            output += f"{self.log} "
+
+        return output + "\n"
+
 
 @dataclass()
 class ACL:
@@ -160,3 +229,9 @@ class ACL:
         for ace in self.aces:
             if ace == find_ace:
                 return True
+
+    def output_cidr(self, name: str):
+        output = f"ip access-list {name}\n"
+        for ace in self.aces:
+            output += ace.output_cidr()
+        return output

@@ -30,6 +30,11 @@ def test(
     vlan: Optional[int] = typer.Option(
         None, "--vlan", "-v", prompt="Vlan number to be migrated: "
     ),
+    test: Optional[str] = typer.Option(
+        None,
+        "--test",
+        "-t",
+    )
 ) -> None:
     """
     Testing
@@ -48,7 +53,10 @@ def test(
     #     print("\nFile open failed...typo?\n")
     #     sys.exit(1)
 
-    utils.run(excel_filename, vlan)
+    if test == 'logic':
+        utils.run_logic(excel_filename, vlan)
+    else:
+        utils.run(excel_filename, vlan)
 
 
 if __name__ == "__main__":
