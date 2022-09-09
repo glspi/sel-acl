@@ -21,24 +21,21 @@ if platform.system() == "Windows":
 
 @app.command("test", help="Initial tests")
 def test(
-    filename: Optional[str] = typer.Option(
+    excel_filename: Optional[str] = typer.Option(
         None,
         "--filename",
         "-f",
         prompt="Excel FIlename for List of VLAN's/ACL's: ",
     ),
     vlan: Optional[int] = typer.Option(
-        None,
-        "--vlan",
-        "-v",
-        prompt="Vlan number to be migrated: "
-    )
+        None, "--vlan", "-v", prompt="Vlan number to be migrated: "
+    ),
 ) -> None:
     """
     Testing
 
     Args:
-        filename: filename.xml
+        excel_filename: filename.xml
         vlan: vlan number
     """
     print("\n\tLoading Time!\n")
@@ -51,7 +48,7 @@ def test(
     #     print("\nFile open failed...typo?\n")
     #     sys.exit(1)
 
-    utils.run(filename, vlan)
+    utils.run(excel_filename, vlan)
 
 
 if __name__ == "__main__":

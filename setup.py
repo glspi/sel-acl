@@ -11,8 +11,7 @@ setuptools.setup(
     install_requires=[
         "typer==0.6.1",
         "openpyxl==3.0.10",
-        "textfsm==1.1.3",
-        "ciscoconfparse==1.6.40"
+        "ciscoconfparse==1.6.40",
     ],
     classifiers=[
         "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
