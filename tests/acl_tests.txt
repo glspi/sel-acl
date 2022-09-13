@@ -11,3 +11,4 @@ ip access-list extended my-test-acl
  permit udp host 0.0.0.0 eq bootpc host 255.255.255.255 eq bootps
  permit tcp addrgroup source_object_group portgroup source_portgroup host 8.8.8.8
  permit tcp addrgroup source_object_group portgroup source_portgroup host 8.8.8.8 established
+ permit tcp 10.105.1.0 0.0.0.255 eq 443 10933 10.105.113.128 0.0.0.127 established

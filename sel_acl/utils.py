@@ -1,56 +1,12 @@
+import re
 import sys
+from ipaddress import ip_network
+from typing import Dict, List
 
-import openpyxl
 from ciscoconfparse import CiscoConfParse
-from openpyxl.utils.exceptions import InvalidFileException
 from rich.pretty import pprint
 
-from sel_acl.objs import ACL, MigrationData
-
-
-def load_excel(filename: str) -> openpyxl.workbook.workbook.Workbook:
-    try:
-        tmp = openpyxl.load_workbook(filename)  # , read_only=True)
-    except InvalidFileException as error:
-        print(error)
-        sys.exit()
-
-    return tmp
-
-
-def get_migration_data_from_vlan(filename: str, vlan: int):
-    print("random excel fun:")
-    tmp = load_excel(filename)
-    sheet = tmp.active
-    print(type(tmp))
-    print(sheet["C9"].value)
-    print("h")
-    print(sheet.max_row, sheet.max_column)
-
-    # Get headers
-    headers = [c.value.upper() for c in next(sheet.iter_rows(min_row=1, max_row=1))]
-
-    col_dict = {}
-    for col in sheet.iter_cols(1, sheet.max_column):
-        col_dict[col[0].value.upper()] = col[0].column_letter
-
-    # Get Row for vlan
-    my_row = False
-    for row in sheet[col_dict["VLAN"]]:
-        if row.value == vlan:
-            my_row = row.row
-    if not my_row:
-        print("Invalid vlan? Not found..")
-        sys.exit()
-
-    data = {
-        "vlan_name": sheet[col_dict["NAME"] + str(my_row)].value,
-        "acl_name_in": sheet[col_dict["ACCESS-LIST-IN"] + str(my_row)].value,
-        "acl_name_out": sheet[col_dict["ACCESS-LIST-OUT"] + str(my_row)].value,
-        "tenant": sheet[col_dict["TENANT"] + str(my_row)].value,
-        "subnet": sheet[col_dict["IP-ADDRESS"] + str(my_row)].value,
-    }
-    return MigrationData(**data)
+from sel_acl.objs import ACE, ACL, CustomWorksheet, MigrationData
 
 
 def get_acl_from_file(filename: str, name: str):
@@ -61,119 +17,148 @@ def get_acl_from_file(filename: str, name: str):
         my_acl = ACL(name=name, acl=acl_parser.find_objects(search_for)[0])
     except IndexError:
         print(f"Error loading acl: '{name}' from {filename}, not found?")
-        sys.exit()
+        my_acl = ACL(name=f"DID NOT FIND {name}")
 
     return my_acl
 
 
-def run(excel_filename: str, vlan: int):
-    """
-    Run
-    :param excel_filename:
-    :param vlan:
-    """
+def get_addrgroups_from_file(filename: str) -> Dict:
+    addr_group_parser = CiscoConfParse(filename)
+    search_for = r"object-group ip address"
 
+    addr_groups = {}
+    group_names = addr_group_parser.find_objects(search_for)
+    for group in group_names:
+        match = re.match(r"object-group\sip\saddress\s(.+)", group.text)
+        if match:
+            name = match.group(1).strip()
+            addr_groups[name] = []
+            for host in group.children:
+                match = re.match(r"\shost-info\s(.+)", host.text)
+                if not match:
+                    match = re.match(
+                        r"\s(\d+\.\d+\.\d+\.\d+)\s(\d+\.\d+\.\d+\.\d+)(?:\s+)?",
+                        host.text,
+                    )
+                    if match:
+                        subnet, mask = match.groups()
+                        network = str(ip_network(f"{subnet}/{mask}", strict=False))
+                        addr_groups[name].append(network)
+                else:
+                    ip = match.group(1).strip() + "/32"
+                    addr_groups[name].append(ip)
+
+    return addr_groups
+
+
+def get_initial_data(excel_filename: str, vlan: int):
     # Get ACL/Name/Subnet/Etc from Vlan Number
-    mig_data = get_migration_data_from_vlan(filename=excel_filename, vlan=vlan)
+    ws = CustomWorksheet(excel_filename=excel_filename)
+    my_row = ws.find_row_from_vlan(vlan)
+    mig_data = ws.get_migration_data_from_row(my_row)
 
-    pprint(mig_data)
-
-    acl_filename = "mytest.ios"
-    acl_in = get_acl_from_file(filename=acl_filename, name=mig_data.acl_name_in)
-    acl_out = get_acl_from_file(filename=acl_filename, name=mig_data.acl_name_out)
-
-    # for ace in acl_in.aces:
-    #     if ace.remark:
-    #         print(ace.nexus_output())
-    #     # for ace2 in acl_out.aces:
-    #     #     if ace == ace2:
-    #     #         print("we found a match?!")
-    #     #         pprint(ace)
-    #     #         pprint(ace2)
-    #     #         if "deny" in ace:
-    #     #             print("uhh no way")
-    #     if ace in acl_out:
-    #         print("WHAAAAT")
-    #         print(ace)
-    #
-    # for ace in acl_out.aces:
-    #     if ace.remark:
-    #         print(ace.remark)
-    #
-    # new_acl_in = acl_in.output_cidr(name="Nexus_Acl-In")
-    # new_acl_out = acl_out.output_cidr(name="Nexus_Acl-Out")
-    # print(new_acl_in)
-    # print(new_acl_out)
-    #pprint(acl_in)
-
-    print("North South...")
-    print("--------------")
+    # pprint(mig_data)
+    return ws, mig_data
 
 
-def get_subnets_from_file(filename: str, exclude: str):
-    tmp = load_excel(filename)
-    sheet = tmp.active
-    # Get headers
-    headers = [c.value.upper() for c in next(sheet.iter_rows(min_row=1, max_row=1))]
-    # or
-    col_dict = {}
-    for col in sheet.iter_cols(1, sheet.max_column):
-        col_dict[col[0].value.upper()] = col[0].column_letter
+def run_main(excel_filename: str, vlan: int, acls: str, addrgroups: str, nsew: str):
 
-    # Get Subnets
-    subnets = []
-    for i, row in enumerate(sheet[col_dict["IP-ADDRESS"]]):
-        if i == 0:
-            continue
-        subnet = row.value.strip() if row.value else None
-        if subnet == exclude or None:
-            continue
-        subnets.append(subnet)
-    return subnets
+    # Set initial data
+    ws, mig_data = get_initial_data(excel_filename=excel_filename, vlan=vlan)
+    addr_groups = get_addrgroups_from_file(addrgroups)
 
+    # Get Existing ACL in/out
+    acl_in = get_acl_from_file(filename=acls, name=mig_data.acl_name_in)
+    acl_out = get_acl_from_file(filename=acls, name=mig_data.acl_name_out)
 
-def get_rows(excel_filename, column, exclude: str = ""):
-    tmp = load_excel(excel_filename)
-    sheet = tmp.active
-    col_dict = {}
-    for col in sheet.iter_cols(1, sheet.max_column):
-        col_dict[col[0].value.upper()] = col[0].column_letter
-    # Get Rows
-    rows = []
-    for i, row in enumerate(sheet[col_dict[column]]):
-        if i == 0:
-            continue
-        value = row.value.strip() if row.value else None
-        if not value:
-            continue
-        if value == exclude:
-            continue
-        rows.append(value)
-    return rows
+    if nsew == "cidr":
+        print("CIDR Output..")
+        print("--------------")
+        new_acl_in = acl_in.output_cidr(name=f"New-NS-{acl_in.name}")
+        new_acl_out = acl_out.output_cidr(name=f"New-NS-{acl_out.name}")
+        print(new_acl_in)
+        print(new_acl_out)
 
+    if nsew == "ew":
+        print("East/West...")
+        print("--------------")
+        ew_mig_data = ws.get_tenant_rows(tenant=mig_data.tenant)
+        # pprint(ew_mig_data)
 
-def check_destination_match(acl, excel_filename, exclude):
-    all_subnets = get_subnets_from_file(filename=excel_filename, exclude=exclude)
-    all_acl_names = get_rows(excel_filename=excel_filename, column="ACCESS-LIST-IN")
-    print(all_acl_names)
+        ew_aces = ew_checker(
+            ew_mig_data=ew_mig_data, acl=acl_in, addr_groups=addr_groups
+        )
 
-    acl_filename = "mytest.ios"
-    all_acls = [get_acl_from_file(filename=acl_filename, name=name) for name in all_acl_names]
-    pprint(all_acls)
-    return 'hi'
+        for ace in ew_aces:
+            contract = ace.to_contract(mig_data)
+            print(contract)
 
+    if nsew == "ns":
+        print("North/South...")
+        print("--------------")
+        ew_mig_data = ws.get_tenant_rows(tenant=mig_data.tenant)
+        ew_aces = ew_checker(
+            ew_mig_data=ew_mig_data, acl=acl_in, addr_groups=addr_groups
+        )
 
-def run_logic(excel_filename: str, vlan: int):
-    # Get ACL/Name/Subnet/Etc from Vlan Number
-    mig_data = get_migration_data_from_vlan(filename=excel_filename, vlan=vlan)
-    pprint(mig_data)
+        for ace in ew_aces:
+            if ace in acl_in.aces:
+                index = acl_in.aces.index(ace)
+                acl_in.aces.insert(
+                    index,
+                    ACE(
+                        remark=f"### BELOW WILL BE EAST/WEST, REMOVE ME: {ace.output_cidr()}"
+                    ),
+                )
+                # contract = ace.to_contract(mig_data)
 
-    acl_filename = "mytest.ios"
-    acl_in = get_acl_from_file(filename=acl_filename, name=mig_data.acl_name_in)
-    acl_out = get_acl_from_file(filename=acl_filename, name=mig_data.acl_name_out)
-
-    __in = check_destination_match(acl_in, excel_filename, exclude=mig_data.subnet)
-
-    # Check destination
+        new_acl_in = acl_in.output_cidr(name=f"New-NS-{acl_in.name}")
+        new_acl_out = acl_out.output_cidr(name=f"New-NS-{acl_out.name}")
+        print(new_acl_in)
+        print(new_acl_out)
 
 
+def ew_checker(
+    ew_mig_data: List[MigrationData], acl: ACL, addr_groups: Dict[str, List[str]]
+):
+    ew_aces = []
+    for mig_data in ew_mig_data:
+        if mig_data.subnet is not None:
+            try:
+                subnet = ip_network(mig_data.subnet, strict=False)
+            except ValueError as e:
+                print(f"\t\tError with vlan: {mig_data.vlan_name} in excel: ")
+                print(f"\t\t\t{e}\n")
+                continue
+
+        for ace in acl.aces:
+            if ace.remark:
+                continue
+
+            dest_in = ace.destination_in(subnet, addr_groups)
+
+            if dest_in == "subnet":
+                print(f"{mig_data.vlan_name} vlan/subnet matches destination: {subnet}")
+                ew_aces.append(ace)
+            if dest_in == "addr_group":
+                print(
+                    f"{mig_data.vlan_name} vlan/subnet matches ADDRESS GROUP!: {subnet}"
+                )
+                ew_aces.append(ace)
+            # if dest_in == "supernet":
+            #     print(f"{mig_data.vlan_name} vlan/subnet is a subnet of destination: {subnet}...what to do?!")
+            #     print(ace.to_contract(mig_data))
+    return ew_aces
+
+
+# def get_all_acls(ws: CustomWorksheet, acls:str) -> Dict:
+#     all_acls = {None: ACL(name='none')}
+#     all_acl_names_in = ws.get_rows_from_column(column="ACCESS-LIST-IN")
+#     for name in all_acl_names_in:
+#         acl = get_acl_from_file(filename=acls, name=name)
+#         # if "DID NOT FIND" in acl.name:
+#         #     acl = ACL(name="DID NOT FIND")
+#         if not all_acls.get(name):
+#             all_acls[name] = acl
+#
+#     return all_acls

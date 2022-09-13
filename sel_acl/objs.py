@@ -1,9 +1,15 @@
 import ipaddress
 import re
-from dataclasses import dataclass, field
 import sys
+from dataclasses import dataclass, field
+from ipaddress import ip_network
+from typing import Dict
 
 import ciscoconfparse
+import openpyxl
+from openpyxl.utils.exceptions import InvalidFileException
+from openpyxl.workbook.workbook import Workbook
+from rich.pretty import pprint
 
 ACL_RE_PATTERN = r"""
                 ^\s+
@@ -24,10 +30,10 @@ ACL_RE_PATTERN = r"""
                     (?P<src_portgroup>portgroup\s\S+)                                  # OR Source portgroup
                     |   
                     (
-                        (?P<src_port_match>(eq|neq|precedence|range|tos|lt|gt)\s+)     # Source port Match ('eq' normally)
+                        (?P<src_port_match>(eq|neq|precedence|range|tos|lt|gt))\s+     # Source port Match ('eq' normally)
                         (
                         (?P<src_port_start>(?<=range\s)\S+)\s+(?P<src_port_end>\S+)         # Source port range 
-                        |(?P<src_port>(?<!range\s)\S+)                                    # OR Source port (only)
+                        |(?P<src_port>(?<!range\s)(?!\d+\.\d+\.\d+\.\d+).+)                                    # OR Source port (only)
                         )
                     )
                 )?
@@ -43,7 +49,7 @@ ACL_RE_PATTERN = r"""
                     (?P<dst_portgroup>portgroup\s\S+)                                  # OR Destination portgroup
                     |
                     (
-                        (?P<dst_port_match>(eq|neq|precedence|range|tos|lt|gt)\s+)     # Destination port Match ('eq' normally)
+                        (?P<dst_port_match>(eq|neq|precedence|range|tos|lt|gt))\s+     # Destination port Match ('eq' normally)
                         (
                         (?P<dst_port_start>(?<=range\s)\S+)\s+(?P<dst_port_end>\S+)         # Destination port range    
                         |(?P<dst_port>(?<!range\s)\S+)                                     # OR Destination port (only)
@@ -60,6 +66,99 @@ ACL_RE_PATTERN = r"""
                 """
 
 
+def load_excel(filename: str) -> openpyxl.workbook.workbook.Workbook:
+    try:
+        tmp = openpyxl.load_workbook(filename)  # , read_only=True)
+    except InvalidFileException as error:
+        print(error)
+        sys.exit()
+
+    return tmp
+
+
+class CustomWorksheet:
+    def __init__(self, excel_filename):
+        # Load excel and get first sheet/tab
+        _ = load_excel(excel_filename)
+        self.worksheet: Workbook = _.active
+
+        # Get headers and put into dict so that sheet["headername"] = "column_letter"
+        self.col_dict = {}
+        for col in self.worksheet.iter_cols(1, self.worksheet.max_column):
+            self.col_dict[col[0].value.upper()] = col[0].column_letter
+
+    def get_migration_data_from_row(self, row):
+        data = {
+            "vlan_name": self.worksheet[self.col_dict["NAME"] + str(row)].value,
+            "acl_name_in": self.worksheet[
+                self.col_dict["ACCESS-LIST-IN"] + str(row)
+            ].value,
+            "acl_name_out": self.worksheet[
+                self.col_dict["ACCESS-LIST-OUT"] + str(row)
+            ].value,
+            "tenant": self.worksheet[self.col_dict["TENANT"] + str(row)].value,
+            "subnet": self.worksheet[self.col_dict["IP-ADDRESS"] + str(row)].value,
+        }
+
+        for k, v in data.items():
+            if v is None:
+                continue
+            else:
+                data[k] = v.strip()
+        return MigrationData(**data)
+
+    def find_row_from_vlan(self, vlan: int):
+        # Get Row for vlan to be migrated
+        my_row = False
+        for cell in self.worksheet[self.col_dict["VLAN"]]:
+            if cell.value == vlan:
+                my_row = cell.row
+        if not my_row:
+            print("Invalid vlan? Not found..")
+            sys.exit()
+
+        return my_row
+
+    def get_rows_from_column(self, column: str, exclude: str = None):
+        rows = []
+        for i, row in enumerate(self.worksheet[self.col_dict[column]]):
+            if i == 0:
+                continue
+            value = row.value.strip() if row.value else None
+            if not value:
+                continue
+            if value == exclude:
+                continue
+            if value not in rows:
+                rows.append(value)
+        return rows
+
+    def get_tenant_rows(self, tenant: str):
+        rows = []
+        for row in self.worksheet.iter_rows():
+            for cell in row:
+                if cell.column_letter == self.col_dict["TENANT"]:
+                    if cell.value == tenant:
+                        rows.append(row)
+        mig_data_list = []
+        for row in rows:
+            my_row = row[0].row  # row number
+            mig_data_list.append(self.get_migration_data_from_row(row=my_row))
+
+        return mig_data_list
+
+    # def get_subnets(self, exclude_subnet: str):
+    #     subnets = []
+    #     for i, row in enumerate(self.worksheet[self.col_dict["IP-ADDRESS"]]):
+    #         if i == 0:
+    #             continue
+    #         subnet = row.value.strip() if row.value else None
+    #         if subnet == exclude_subnet or None:
+    #             continue
+    #         subnets.append(subnet)
+    #     return subnets
+
+
 @dataclass()
 class MigrationData:
     vlan_name: str
@@ -71,35 +170,35 @@ class MigrationData:
 
 @dataclass()
 class ACE:
-    remark: str or None
-    action: str or None
-    protocol: str or None
-    src_group: str or None
-    src_wld: str or None
-    src_host: str or None
-    src_any: str or None
-    src_portgroup: str or None
-    src_port_match: str or None
-    src_port_start: str or None
-    src_port_end: str or None
-    src_port: str or None
-    dst_group: str or None
-    dst_wld: str or None
-    dst_host: str or None
-    dst_any: str or None
-    dst_portgroup: str or None
-    dst_port_match: str or None
-    dst_port_start: str or None
-    dst_port_end: str or None
-    dst_port: str or None
-    flags_match: str or None
-    tcp_flag: str or None
-    icmp_type: str or None
-    log: str or None
+    remark: str = None
+    action: str = None
+    protocol: str = None
+    src_group: str = None
+    src_wld: str = None
+    src_host: str = None
+    src_any: str = None
+    src_portgroup: str = None
+    src_port_match: str = None
+    src_port_start: str = None
+    src_port_end: str = None
+    src_port: str = None
+    dst_group: str = None
+    dst_wld: str = None
+    dst_host: str = None
+    dst_any: str = None
+    dst_portgroup: str = None
+    dst_port_match: str = None
+    dst_port_start: str = None
+    dst_port_end: str = None
+    dst_port: str = None
+    flags_match: str = None
+    tcp_flag: str = None
+    icmp_type: str = None
+    log: str = None
 
     # Custom/Created Variables
-    src_cidr: str = field(default_factory=str)
-    dst_cidr: str = field(default_factory=str)
+    src_cidr: str = None  # field(default_factory=str)
+    dst_cidr: str = None  # field(default_factory=str)
 
     def __post_init__(self):
         # Initialize ACE in a more reusable way
@@ -129,23 +228,34 @@ class ACE:
                 self.src_cidr = (
                     src_net
                     + "/"
-                    + str(ipaddress.ip_network(src_net + "/" + src_wildcard).prefixlen)
+                    + str(
+                        ipaddress.ip_network(
+                            src_net + "/" + src_wildcard, strict=False
+                        ).prefixlen
+                    )
                 )
             if not self.dst_any and self.dst_wld:
                 dst_net, dst_wildcard = self.dst_wld.split()
                 self.dst_cidr = (
                     dst_net
                     + "/"
-                    + str(ipaddress.ip_network(dst_net + "/" + dst_wildcard).prefixlen)
+                    + str(
+                        ipaddress.ip_network(
+                            dst_net + "/" + dst_wildcard, strict=False
+                        ).prefixlen
+                    )
                 )
         except ValueError as e:
+            # Now that strict=False this try/except block not needed...?
             if "has host bits set" in str(e):
-                print("ACL is 'incorrect', host bits are set in network, CIDR could not be created.")
+                print(
+                    "ACL is 'incorrect', host bits are set in network, CIDR could not be created."
+                )
                 print(self)
 
     def output_cidr(self):
         if self.remark:
-            return " " + self.remark + "\n"
+            return " " + self.remark
 
         output = " "
         output += f"{self.action} {self.protocol} "
@@ -204,13 +314,52 @@ class ACE:
         if self.log:
             output += f"{self.log} "
 
-        return output + "\n"
+        return output
+
+    def destination_in(self, subnet, addr_groups):
+        if self.dst_group:
+            my_destinations = addr_groups.get(self.dst_group)
+
+            if my_destinations:
+                for network in my_destinations:
+                    try:
+                        my_destination = ip_network(network, strict=False)
+                    except ValueError as e:
+                        return f"ERR: {e}"
+                    if my_destination.subnet_of(subnet):
+                        return "subnet"
+                    if my_destination.supernet_of(subnet):
+                        return "supernet"
+            else:
+                print(f"Error getting address group: {self.dst_group}, skipping...")
+                return False
+            if my_destination == subnet:
+                return "addr_group"
+        else:
+            if self.dst_host:
+                my_destination = self.dst_host
+            if self.dst_any:
+                my_destination = "0.0.0.0/0"
+            if self.dst_cidr:
+                my_destination = self.dst_cidr
+            try:
+                my_destination = ip_network(my_destination, strict=False)
+            except ValueError as e:
+                return f"ERR: {e}"
+
+            if my_destination.subnet_of(subnet):
+                return "subnet"
+            if my_destination.supernet_of(subnet):
+                return "supernet"
+
+    def to_contract(self, mig_data):
+        return self.output_cidr()
 
 
 @dataclass()
 class ACL:
     name: str
-    acl: ciscoconfparse.models_cisco.IOSCfgLine
+    acl: ciscoconfparse.models_cisco.IOSCfgLine = None
     aces: list[ACE] = field(default_factory=list)
     rec = re.compile(ACL_RE_PATTERN, re.X)
 
@@ -233,5 +382,5 @@ class ACL:
     def output_cidr(self, name: str):
         output = f"ip access-list {name}\n"
         for ace in self.aces:
-            output += ace.output_cidr()
+            output += ace.output_cidr() + "\n"
         return output
