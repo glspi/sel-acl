@@ -100,14 +100,14 @@ def ns_ew_combined(ws, mig_data, acl, addr_groups, direction: str = "in"):
             direction=direction,
         )
         if ew_supernets:
-            print("\n\nSupernet rules found:")
+            print(f"\n\nSupernet rules found in {acl.name}:")
             print(f"{'Overlapping VLAN':<60}:\t{' ACE Entry'}")
             print(
                 "----------------------------------------------------------------------------------------"
             )
             for supernet in ew_supernets:
-                for vlan_name, ace in supernet.items():
-                    print(f"{vlan_name:<60}:\t{ace.output_cidr()}")
+                vlan = f"{supernet['vlan_name']}  ({supernet['subnet']})"
+                print(f"{vlan:<60}:\t{supernet['match']}")
 
         return ew_aces, ew_contracts
 
@@ -170,6 +170,7 @@ def run_main(excel_filename: str, vlan: int, acls: str, addr_groups: str, nsew: 
     if nsew == "ew":
         print("East/West...")
         print("--------------")
+        print(f"\nChecking {acl_in.name}...")
         ew_aces, ew_contracts = ns_ew_combined(
             ws=ws, mig_data=mig_data, addr_groups=addr_groups, acl=acl_in
         )
@@ -180,6 +181,7 @@ def run_main(excel_filename: str, vlan: int, acls: str, addr_groups: str, nsew: 
             filename=f"contracts-{mig_data.vlan_name}-in.xlsx",
         )
 
+        print(f"\nChecking {acl_out.name}...")
         ew_aces, ew_contracts = ns_ew_combined(
             ws=ws, mig_data=mig_data, addr_groups=addr_groups, acl=acl_out
         )
@@ -273,7 +275,9 @@ def ew_checker(
                         else:
                             subnet_str += f", {subnet_}"
                     key = f"{mig_data.vlan_name}   ({subnet_str})"
-                    ew_supernets.append({key: ace})
+                    temp = {"vlan_name": mig_data.vlan_name, "subnet":subnet_str, "match": f"{acl.name}{ace.output_cidr()}"}
+                    #ew_supernets.append({key: ace})
+                    ew_supernets.append(temp)
 
     return ew_aces, ew_contracts, ew_supernets
 
