@@ -104,7 +104,10 @@ class CustomWorksheet:
                     _ = ip_network(subnet, strict=False)
                     subnets.append(subnet)
                 except ValueError as e:
-                    print(f"Error: Bad subnet in: {self.worksheet[self.col_dict['NAME'] + str(row)].value}", end="")
+                    print(
+                        f"Error: Bad subnet in: {self.worksheet[self.col_dict['NAME'] + str(row)].value}",
+                        end="",
+                    )
                     print(f"\t\t{e}")
                     return None
         else:
@@ -145,7 +148,7 @@ class CustomWorksheet:
             "acl_name_in": in_,
             "acl_name_out": out,
             "tenant": self.worksheet[self.col_dict["TENANT"] + str(row)].value,
-            "subnet": subnets
+            "subnet": subnets,
         }
 
         for k, v in data.items():
@@ -327,7 +330,7 @@ class ACE:
             output += f"{self.src_cidr} "
         else:
             pass
-            #print(f"Error, no source found in ACE {self}.")
+            # print(f"Error, no source found in ACE {self}.")
         # SOURCE PORT
         if self.src_portgroup:
             output += f"portgroup {self.src_portgroup} "
@@ -349,7 +352,7 @@ class ACE:
             output += f"{self.dst_cidr} "
         else:
             pass
-            #print(f"Error, no destination found in ACE {self.__dict__}.")
+            # print(f"Error, no destination found in ACE {self.__dict__}.")
         # DESTINATION PORT
         if self.dst_portgroup:
             output += f"portgroup {self.dst_portgroup} "
@@ -388,8 +391,6 @@ class ACE:
             else:
                 print(f"Error getting address group: {self.dst_group}, skipping...")
                 return False
-            if my_destination == subnet:
-                return "addr_group"
         else:
             if self.dst_host:
                 my_destination = self.dst_host
@@ -409,6 +410,40 @@ class ACE:
                 # my_destination was never found/assigned
                 print(f"ACE is incorrect, cannot process: {self.__dict__}")
 
+    def source_in(self, subnet, addr_groups):
+        if self.src_group:
+            my_destinations = addr_groups.get(self.src_group)
+            if my_destinations:
+                for network in my_destinations:
+                    try:
+                        my_destination = ip_network(network, strict=False)
+                    except ValueError as e:
+                        return f"ERR: {e}"
+                    if my_destination.subnet_of(subnet):
+                        return "subnet"
+                    if my_destination.supernet_of(subnet):
+                        return "supernet"
+            else:
+                print(f"Error getting address group: {self.src_group}, skipping...")
+                return False
+        else:
+            if self.src_host:
+                my_destination = self.src_host
+            if self.src_any:
+                my_destination = "0.0.0.0/0"
+            if self.src_cidr:
+                my_destination = self.src_cidr
+            try:
+                my_destination = ip_network(my_destination, strict=False)
+                if my_destination.subnet_of(subnet):
+                    return "subnet"
+                if my_destination.supernet_of(subnet):
+                    return "supernet"
+            except ValueError as e:
+                return f"ERR: {e}"
+            except UnboundLocalError as e:
+                # my_destination was never found/assigned
+                print(f"ACE is incorrect, cannot process: {self.__dict__}")
 
     def to_contract(self, acl, tenant, src_epg, dst_epg):
         source, destination, source_port, destination_port = "", "", "", ""

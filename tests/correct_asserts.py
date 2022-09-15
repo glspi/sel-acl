@@ -843,6 +843,6 @@ test_acl = ACL(
             log=None,
             src_cidr="10.1.1.0/24",
             dst_cidr=None,
-        )
+        ),
     ],
 )

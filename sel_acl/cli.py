@@ -19,47 +19,7 @@ class Params:
     excel_filename: str
     vlan: int
     acls: str
-    addrgroups: str
-
-
-# @app.command("test", help="Initial tests")
-# def test(
-#     excel_filename: Optional[str] = typer.Option(
-#         None,
-#         "--filename",
-#         "-f",
-#         prompt="Excel FIlename for List of VLAN's/ACL's: ",
-#     ),
-#     vlan: Optional[int] = typer.Option(
-#         None, "--vlan", "-v", prompt="Vlan number to be migrated: "
-#     ),
-#     test: Optional[str] = typer.Option(
-#         None,
-#         "--test",
-#         "-t",
-#     )
-# ) -> None:
-#     """
-#     Testing
-#
-#     Args:
-#         excel_filename: filename.xml
-#         vlan: vlan number
-#     """
-#     print("\n\tLoading Time!\n")
-#
-#     # try:
-#     #     with open(filename, encoding="utf8") as f:
-#     #         _ = f.read()
-#     # except OSError as e:
-#     #     print(e)
-#     #     print("\nFile open failed...typo?\n")
-#     #     sys.exit(1)
-#
-#     if test == 'logic':
-#         utils.run_logic(excel_filename, vlan)
-#     else:
-#         utils.run(excel_filename, vlan)
+    addr_groups: str
 
 
 @app.command("ns")
@@ -82,7 +42,7 @@ def north_south(
         excel_filename=Params.excel_filename,
         vlan=Params.vlan,
         acls=Params.acls,
-        addrgroups=Params.addrgroups,
+        addr_groups=Params.addr_groups,
         nsew="ns",
     )
 
@@ -97,7 +57,7 @@ def east_west():
         excel_filename=Params.excel_filename,
         vlan=Params.vlan,
         acls=Params.acls,
-        addrgroups=Params.addrgroups,
+        addr_groups=Params.addr_groups,
         nsew="ew",
     )
 
@@ -112,7 +72,7 @@ def cidr():
         excel_filename=Params.excel_filename,
         vlan=Params.vlan,
         acls=Params.acls,
-        addrgroups=Params.addrgroups,
+        addr_groups=Params.addr_groups,
         nsew="cidr",
     )
 
@@ -132,7 +92,7 @@ def main(
     acls: Optional[str] = typer.Option(
         None, "--acls", "-a", prompt="Filename containing the ACL's: "
     ),
-    addrgroups: Optional[str] = typer.Option(
+    addr_groups: Optional[str] = typer.Option(
         None,
         "--groups",
         "-g",
@@ -142,7 +102,7 @@ def main(
     Params.excel_filename = excel_filename
     Params.vlan = vlan
     Params.acls = acls
-    Params.addrgroups = addrgroups
+    Params.addr_groups = addr_groups
 
 
 if __name__ == "__main__":
