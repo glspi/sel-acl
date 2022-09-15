@@ -37,8 +37,11 @@ def test_eastwest():
 
         # TEST DATA
         ws, mig_data = get_initial_data(
-            excel_filename="./tests/test_mig_data.xlsx", vlan=num
+            excel_filename="./tests/mig_data_test.xlsx", vlan=num
         )
+        if not mig_data:
+            continue
+
         ew_mig_data = ws.get_tenant_rows(tenant=mig_data.tenant)
         ew_mig_data = remove_self(vlan_name=mig_data.vlan_name, ew_mig_data=ew_mig_data)
         addr_groups = get_addrgroups_from_file("./tests/objects_test.ios")

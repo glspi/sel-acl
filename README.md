@@ -3,20 +3,16 @@
 
 TODO:
 crit:
-'secondary' in subnet
-check group matching
-don't include if not migrating
+source
+
 acl compare
 change any to 0.0.0.0/0 on post-init
-tests for group matching
-re/split dummy
-
+more tests for group matching
 
 eh:
-color on output
+re/split dummy
 0.0.0.0/255.255.255.255/bootps/pc in nexus
-supernet - what to do?! (ignore normally but maybe not)
-None in all_subnets again
+color on output
 
 meh:
 get rid of ciscoconfparse?

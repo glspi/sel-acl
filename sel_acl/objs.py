@@ -89,6 +89,27 @@ class CustomWorksheet:
             self.col_dict[col[0].value.upper()] = col[0].column_letter
 
     def get_migration_data_from_row(self, row):
+        # Check if we even should migrate or return anything
+        if self.worksheet[self.col_dict["MIGRATE TO ACI?"] + str(row)].value == "N":
+            return None
+        subnets = []
+        subnet_val = self.worksheet[self.col_dict["IP-ADDRESS"] + str(row)].value
+        if subnet_val:
+            subnet_val = subnet_val.strip()
+            subnet_secondary = subnet_val.split(",")
+            for subnet in subnet_secondary:
+                subnet = subnet.strip()
+                subnet = subnet.replace(" secondary", "")
+                try:
+                    _ = ip_network(subnet, strict=False)
+                    subnets.append(subnet)
+                except ValueError as e:
+                    print(f"Error: Bad subnet in: {self.worksheet[self.col_dict['NAME'] + str(row)].value}", end="")
+                    print(f"\t\t{e}")
+                    return None
+        else:
+            return None
+
         acl = self.worksheet[self.col_dict["ACCESS-LISTS"] + str(row)].value
 
         if acl is None:
@@ -124,7 +145,7 @@ class CustomWorksheet:
             "acl_name_in": in_,
             "acl_name_out": out,
             "tenant": self.worksheet[self.col_dict["TENANT"] + str(row)].value,
-            "subnet": self.worksheet[self.col_dict["IP-ADDRESS"] + str(row)].value,
+            "subnet": subnets
         }
 
         for k, v in data.items():
@@ -175,7 +196,9 @@ class CustomWorksheet:
         mig_data_list = []
         for row in rows:
             my_row = row[0].row  # row number
-            mig_data_list.append(self.get_migration_data_from_row(row=my_row))
+            my_vlan = self.get_migration_data_from_row(row=my_row)
+            if my_vlan:
+                mig_data_list.append(my_vlan)
 
         return mig_data_list
 
@@ -303,8 +326,8 @@ class ACE:
         elif self.src_cidr:
             output += f"{self.src_cidr} "
         else:
-            print(f"Error, no source found in ACE {self}.")
-            sys.exit()
+            pass
+            #print(f"Error, no source found in ACE {self}.")
         # SOURCE PORT
         if self.src_portgroup:
             output += f"portgroup {self.src_portgroup} "
@@ -325,8 +348,8 @@ class ACE:
         elif self.dst_cidr:
             output += f"{self.dst_cidr} "
         else:
-            print(f"Error, no destination found in ACE {self}.")
-            sys.exit()
+            pass
+            #print(f"Error, no destination found in ACE {self.__dict__}.")
         # DESTINATION PORT
         if self.dst_portgroup:
             output += f"portgroup {self.dst_portgroup} "
@@ -376,17 +399,16 @@ class ACE:
                 my_destination = self.dst_cidr
             try:
                 my_destination = ip_network(my_destination, strict=False)
+                if my_destination.subnet_of(subnet):
+                    return "subnet"
+                if my_destination.supernet_of(subnet):
+                    return "supernet"
             except ValueError as e:
                 return f"ERR: {e}"
             except UnboundLocalError as e:
-                print(e)
-                print(self.output_cidr())
-                sys.exit()
+                # my_destination was never found/assigned
+                print(f"ACE is incorrect, cannot process: {self.__dict__}")
 
-            if my_destination.subnet_of(subnet):
-                return "subnet"
-            if my_destination.supernet_of(subnet):
-                return "supernet"
 
     def to_contract(self, acl, tenant, src_epg, dst_epg):
         source, destination, source_port, destination_port = "", "", "", ""

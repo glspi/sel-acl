@@ -79,6 +79,10 @@ def run_main(excel_filename: str, vlan: int, acls: str, addrgroups: str, nsew: s
 
     # Set initial data
     ws, mig_data = get_initial_data(excel_filename=excel_filename, vlan=vlan)
+    if not mig_data:
+        print(f"We aren't migrating this vlan ({vlan}) or it has no subnet! (check the spreadsheet.)")
+        sys.exit()
+
     addr_groups = get_addrgroups_from_file(addrgroups)
 
     # Get Existing ACL in/out
@@ -101,54 +105,70 @@ def run_main(excel_filename: str, vlan: int, acls: str, addrgroups: str, nsew: s
         print("East/West...")
         print("--------------")
         ew_mig_data = ws.get_tenant_rows(tenant=mig_data.tenant)
-        ew_mig_data = remove_self(vlan_name=mig_data.vlan_name, ew_mig_data=ew_mig_data)
-        # pprint(ew_mig_data)
+        if ew_mig_data:
+            ew_mig_data = remove_self(vlan_name=mig_data.vlan_name, ew_mig_data=ew_mig_data)
+            # pprint(ew_mig_data)
 
-        ew_aces, ew_contracts, ew_supernets = ew_checker(
-            ew_mig_data=ew_mig_data,
-            acl=acl_in,
-            addr_groups=addr_groups,
-            my_mig_data=mig_data,
-        )
-
-        if ew_supernets:
-            print("\n\nSupernet rules found:")
-            print("---------------------")
-            for supernet in ew_supernets:
-                for vlan_name, ace in supernet.items():
-                    print(f"{vlan_name:<60}:\t{ace.output_cidr()}")
-
-        if ew_contracts:
-            print("\n\nEast/West Contracts found:")
-            print("---------------------")
-            for ace in ew_aces:
-                if ace in acl_in.aces:
-                    print(ace.output_cidr())
-            create_contract_file(
-                contracts=ew_contracts, filename=f"contracts-{mig_data.vlan_name}.xlsx"
+            ew_aces, ew_contracts, ew_supernets = ew_checker(
+                ew_mig_data=ew_mig_data,
+                acl=acl_in,
+                addr_groups=addr_groups,
+                my_mig_data=mig_data,
             )
+
+            if ew_supernets:
+                print("\n\nSupernet rules found:")
+                print("---------------------")
+                for supernet in ew_supernets:
+                    for vlan_name, ace in supernet.items():
+                        print(f"{vlan_name:<60}:\t{ace.output_cidr()}")
+
+            if ew_contracts:
+                print("\n\nEast/West Contracts found:")
+                print("---------------------")
+                for ace in ew_aces:
+                    if ace in acl_in.aces:
+                        print(ace.output_cidr())
+                create_contract_file(
+                    contracts=ew_contracts, filename=f"contracts-{mig_data.vlan_name}.xlsx"
+                )
 
     if nsew == "ns":
         print("North/South...")
         print("--------------")
         ew_mig_data = ws.get_tenant_rows(tenant=mig_data.tenant)
-        ew_mig_data = remove_self(vlan_name=mig_data.vlan_name, ew_mig_data=ew_mig_data)
-        ew_aces, _, ew_supernets = ew_checker(
-            ew_mig_data=ew_mig_data,
-            acl=acl_in,
-            addr_groups=addr_groups,
-            my_mig_data=mig_data,
-        )
+        if ew_mig_data:
+            ew_mig_data = remove_self(vlan_name=mig_data.vlan_name, ew_mig_data=ew_mig_data)
+            ew_aces, _, ew_supernets = ew_checker(
+                ew_mig_data=ew_mig_data,
+                acl=acl_in,
+                addr_groups=addr_groups,
+                my_mig_data=mig_data,
+            )
+            # Insert remarks so we can find these to delete after migrations
+            for ace in ew_aces:
+                if ace in acl_in.aces:
+                    index = acl_in.aces.index(ace)
+                    acl_in.aces.insert(
+                        index,
+                        ACE(
+                            remark=f"### EAST/WEST BELOW, REMOVE ME LATER: {ace.output_cidr()}"
+                        ),
+                    )
 
-        for ace in ew_aces:
-            if ace in acl_in.aces:
-                index = acl_in.aces.index(ace)
-                acl_in.aces.insert(
-                    index,
-                    ACE(
-                        remark=f"### EAST/WEST BELOW, REMOVE ME LATER: {ace.output_cidr()}"
-                    ),
-                )
+            if ew_supernets:
+                print("\n\nSupernet rules found:")
+                print(f"{'Overlapping VLAN':<40}:\t{'ACE Entry'}")
+                print("---------------------")
+                for supernet in ew_supernets:
+                    for vlan_name, ace in supernet.items():
+                        print(f"{vlan_name:<60}:\t{ace.output_cidr()}")
+            if ew_aces:
+                print("\n\nEast/West Rules found:")
+                print("---------------------")
+                for ace in ew_aces:
+                    if ace in acl_in.aces:
+                        print(ace.output_cidr())
 
         new_acl_in = acl_in.output_cidr(name=f"New-NS-{acl_in.name}")
         new_acl_out = acl_out.output_cidr(name=f"New-NS-{acl_out.name}")
@@ -156,19 +176,6 @@ def run_main(excel_filename: str, vlan: int, acls: str, addrgroups: str, nsew: s
         print("---------------------")
         print(new_acl_in)
         print(new_acl_out)
-        if ew_supernets:
-            print("\n\nSupernet rules found:")
-            print(f"{'Overlapping VLAN':<40}:\t{'ACE Entry'}")
-            print("---------------------")
-            for supernet in ew_supernets:
-                for vlan_name, ace in supernet.items():
-                    print(f"{vlan_name:<60}:\t{ace.output_cidr()}")
-        if ew_aces:
-            print("\n\nEast/West Rules found:")
-            print("---------------------")
-            for ace in ew_aces:
-                if ace in acl_in.aces:
-                    print(ace.output_cidr())
 
 
 def create_contract_file(filename: str, contracts: List[Dict[str, str]]):
@@ -207,38 +214,38 @@ def ew_checker(
     ew_contracts = []
     ew_supernets = []
     for mig_data in ew_mig_data:
-        if mig_data.subnet is not None:
-            try:
-                subnet = ip_network(mig_data.subnet, strict=False)
-            except ValueError as e:
-                print(f"\t\tError with vlan: {mig_data.vlan_name} in excel: ")
-                print(f"\t\t\t{e}\n")
-                continue
-
         for ace in acl.aces:
             if ace.remark:
                 continue
-            dest_in = ace.destination_in(subnet, addr_groups)
+            for subnet in mig_data.subnet:
+                dest_in = ace.destination_in(ip_network(subnet, strict=False), addr_groups)
 
-            if dest_in == "subnet":
-                # print(f"{mig_data.vlan_name} vlan/subnet matches destination: {subnet}")
-                contract = ace.to_contract(
-                    acl=acl,
-                    tenant=mig_data.tenant,
-                    src_epg=my_mig_data.epg,
-                    dst_epg=mig_data.epg,
-                )
-                ew_aces.append(ace)
-                ew_contracts.append(contract)
-            if dest_in == "addr_group":
-                print(
-                    f"{mig_data.vlan_name} vlan/subnet matches ADDRESS GROUP!: {ace.dst_group}"
-                )
-                ew_aces.append(ace)
-                ew_contracts.append(contract)
-            if dest_in == "supernet":
-                key = f"{mig_data.vlan_name}   ({mig_data.subnet})"
-                ew_supernets.append({key:ace})
+                if dest_in == "subnet":
+                    # print(f"{mig_data.vlan_name} vlan/subnet matches destination: {subnet}")
+                    contract = ace.to_contract(
+                        acl=acl,
+                        tenant=mig_data.tenant,
+                        src_epg=my_mig_data.epg,
+                        dst_epg=mig_data.epg,
+                    )
+                    ew_aces.append(ace)
+                    ew_contracts.append(contract)
+                if dest_in == "addr_group":
+                    print(
+                        f"{mig_data.vlan_name} vlan/subnet matches ADDRESS GROUP!: {ace.dst_group}"
+                    )
+                    ew_aces.append(ace)
+                    ew_contracts.append(contract)
+                if dest_in == "supernet":
+                    subnet_str = ""
+                    for i, subnet in enumerate(mig_data.subnet):
+                        if i == 0:
+                            subnet_str += subnet
+                        else:
+                            subnet_str += f", {subnet}"
+                    key = f"{mig_data.vlan_name}   ({subnet_str})"
+                    ew_supernets.append({key: ace})
+
     return ew_aces, ew_contracts, ew_supernets
 
 
