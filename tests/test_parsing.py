@@ -1,20 +1,11 @@
 import correct_asserts
-from openpyxl.workbook.workbook import Workbook
-from rich.pretty import pprint
 
-from sel_acl.objs import ACE, ACL, CustomWorksheet
 from sel_acl.utils import (
     create_contract_file,
-    ew_checker,
     get_acl_from_file,
-    get_addrgroups_from_file,
     get_initial_data,
-    remove_self,
     ns_ew_combined,
-    create_contracts
 )
-
-# test_acl_regex = correct_asserts.test_acl
 
 
 def test_regex():
@@ -32,7 +23,7 @@ def test_eastwest():
     contracts = []
 
     for num in [3]:
-    #for num in [1, 2, 3, 4, 5, 6, 7]:
+        # for num in [1, 2, 3, 4, 5, 6, 7]:
         filename = "./tests/acl_tests.txt"
         test_acl = get_acl_from_file(filename, f"From-Vlan{num}")
         test_acl.acl = None
@@ -45,14 +36,18 @@ def test_eastwest():
         )
 
         ew_aces, ew_contracts = ns_ew_combined(
-            ws=ws, mig_data=mig_data, addr_groups=addr_groups, acl=test_acl, direction="out"
+            ws=ws,
+            mig_data=mig_data,
+            addr_groups=addr_groups,
+            acl=test_acl,
+            direction="out",
         )
 
         correct_contract = getattr(correct_asserts, f"vlan{num}_contracts")
         correct_contracts.append(correct_contract)
         contracts.append(ew_contracts)
 
-    #assert contracts == correct_contracts
+    # assert contracts == correct_contracts
 
     # UNCOMMENT AND RUN MANUALLY TO GET CONTRACT OUTPUT
     print("\nACES:")

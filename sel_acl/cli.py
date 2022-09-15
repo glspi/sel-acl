@@ -1,5 +1,4 @@
 """sel_acl.cli"""
-import sys
 from dataclasses import dataclass
 from typing import Optional
 
@@ -22,7 +21,10 @@ class Params:
     addr_groups: str
 
 
-@app.command("ns")
+@app.command(
+    "ns",
+    help="Spit out North/South ACL's with remarks for East/West traffic added, in CIDR notation.",
+)
 def north_south(
     # northsouth: Optional[bool] = typer.Option(
     #     None,
@@ -47,7 +49,7 @@ def north_south(
     )
 
 
-@app.command("ew")
+@app.command("ew", help="Create contracts.xlsx file for review.")
 def east_west():
     """
     east/west!
@@ -62,7 +64,7 @@ def east_west():
     )
 
 
-@app.command("cidr")
+@app.command("cidr", help="Spit out ACL as-is in CIDR notation.")
 def cidr():
     """
     east/west!
@@ -84,19 +86,28 @@ def main(
         "--filename",
         "-f",
         prompt="Excel Filename for List of VLAN's/ACL's/tenants: ",
-        is_eager=True,
+        metavar="Excel Filename for List of VLAN's/ACL's/tenants",
     ),
     vlan: Optional[int] = typer.Option(
-        None, "--vlan", "-v", prompt="Vlan number to be migrated: "
+        None,
+        "--vlan",
+        "-v",
+        prompt="Vlan number to be migrated: ",
+        metavar="Vlan number to be migrated:",
     ),
     acls: Optional[str] = typer.Option(
-        None, "--acls", "-a", prompt="Filename containing the ACL's: "
+        None,
+        "--acls",
+        "-a",
+        prompt="Filename containing the ACL's: ",
+        metavar="Filename containing the ACL's",
     ),
     addr_groups: Optional[str] = typer.Option(
         None,
         "--groups",
         "-g",
         prompt="Filename containing the Object Groups (IOS-XE): ",
+        metavar="Filename containing the Object Groups (IOS-XE)",
     ),
 ) -> None:
     Params.excel_filename = excel_filename

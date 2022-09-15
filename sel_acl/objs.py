@@ -4,13 +4,11 @@ import re
 import sys
 from dataclasses import dataclass, field
 from ipaddress import ip_network
-from typing import Dict
 
 import ciscoconfparse
 import openpyxl
 from openpyxl.utils.exceptions import InvalidFileException
 from openpyxl.workbook.workbook import Workbook
-from rich.pretty import pprint
 
 ACL_RE_PATTERN = r"""
                 ^\s+

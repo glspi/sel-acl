@@ -7,7 +7,6 @@ from typing import Dict, List
 from ciscoconfparse import CiscoConfParse
 from openpyxl.workbook.views import BookView
 from openpyxl.workbook.workbook import Workbook
-from rich.pretty import pprint
 
 from sel_acl.objs import ACE, ACL, CustomWorksheet, MigrationData
 
@@ -98,12 +97,14 @@ def ns_ew_combined(ws, mig_data, acl, addr_groups, direction: str = "in"):
             acl=acl,
             addr_groups=addr_groups,
             my_mig_data=mig_data,
-            direction=direction
+            direction=direction,
         )
         if ew_supernets:
             print("\n\nSupernet rules found:")
             print(f"{'Overlapping VLAN':<60}:\t{' ACE Entry'}")
-            print("----------------------------------------------------------------------------------------")
+            print(
+                "----------------------------------------------------------------------------------------"
+            )
             for supernet in ew_supernets:
                 for vlan_name, ace in supernet.items():
                     print(f"{vlan_name:<60}:\t{ace.output_cidr()}")
@@ -235,7 +236,7 @@ def ew_checker(
     acl: ACL,
     addr_groups: Dict[str, List[str]],
     my_mig_data: MigrationData,
-    direction: str = "in"
+    direction: str = "in",
 ):
     ew_aces = []
     ew_contracts = []
