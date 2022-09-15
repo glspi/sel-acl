@@ -7,6 +7,7 @@ from typing import Dict, List
 from ciscoconfparse import CiscoConfParse
 from openpyxl.workbook.views import BookView
 from openpyxl.workbook.workbook import Workbook
+from openpyxl.styles import PatternFill
 
 from sel_acl.objs import ACE, ACL, CustomWorksheet, MigrationData
 
@@ -214,6 +215,11 @@ def create_contract_file(filename: str, contracts: List[Dict[str, str]]):
     for k, v in contracts[0].items():
         headers.append(k)
     ws.append(headers)
+    start, end = ws.dimensions.split(":")
+    headers = ws[start:end][0]
+    for cell in headers:
+        cell.fill = PatternFill("solid", fgColor="CCCCCC")
+    #ws[start:end].value.fill = PatternFill("solid", fgColor="CCCCCC")
     ws.freeze_panes = "A2"
     ws.auto_filter.ref = ws.dimensions
     view = [BookView(xWindow=0, yWindow=0, windowWidth=18140, windowHeight=15540)]
