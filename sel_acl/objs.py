@@ -1,3 +1,4 @@
+"""sel_acl.objs"""
 import ipaddress
 import re
 import sys
@@ -88,14 +89,40 @@ class CustomWorksheet:
             self.col_dict[col[0].value.upper()] = col[0].column_letter
 
     def get_migration_data_from_row(self, row):
+        acl = self.worksheet[self.col_dict["ACCESS-LISTS"] + str(row)].value
+
+        if acl is None:
+            in_ = ""
+            out = ""
+        else:
+            in_out = self.col_dict.get("ACCESS-LIST-IN")
+            if in_out:
+                in_ = self.worksheet[in_out + str(row)].value
+                out = self.worksheet[self.col_dict["ACCESS-LIST-OUT"] + str(row)].value
+            else:
+                acl = acl.strip()
+                try:
+                    in_, out = acl.split(",")
+                except ValueError:
+                    try:
+                        in_, out = acl.split(" ")
+                    except ValueError as e:
+                        in_ = ""
+                        out = None
+                        if acl.startswith("From"):
+                            in_ = acl
+                        elif acl.startswith("To"):
+                            out = acl
+                        else:
+                            print(f"Your Access-Lists column in broken. ", end="")
+                            print(f"Find and fix {acl}")
+                            print(e)
+                            sys.exit()
+
         data = {
             "vlan_name": self.worksheet[self.col_dict["NAME"] + str(row)].value,
-            "acl_name_in": self.worksheet[
-                self.col_dict["ACCESS-LIST-IN"] + str(row)
-            ].value,
-            "acl_name_out": self.worksheet[
-                self.col_dict["ACCESS-LIST-OUT"] + str(row)
-            ].value,
+            "acl_name_in": in_,
+            "acl_name_out": out,
             "tenant": self.worksheet[self.col_dict["TENANT"] + str(row)].value,
             "subnet": self.worksheet[self.col_dict["IP-ADDRESS"] + str(row)].value,
         }
@@ -104,7 +131,12 @@ class CustomWorksheet:
             if v is None:
                 continue
             else:
-                data[k] = v.strip()
+                if isinstance(v, str):
+                    data[k] = v.strip()
+
+        # Temp EPG Name
+        data["epg"] = "EPG-" + data["vlan_name"]
+
         return MigrationData(**data)
 
     def find_row_from_vlan(self, vlan: int):
@@ -166,6 +198,7 @@ class MigrationData:
     acl_name_out: str
     tenant: str
     subnet: str
+    epg: str
 
 
 @dataclass()
@@ -205,21 +238,21 @@ class ACE:
         if self.remark:
             self.remark = self.remark.strip("remark ")
         if self.src_group:
-            self.src_group = self.src_group.strip("addrgroup ")
+            self.src_group = self.src_group.replace("addrgroup ", "")
         if self.src_host:
-            self.src_host = self.src_host.strip("host ")
+            self.src_host = self.src_host.replace("host ", "")
             if self.src_host not in ("0.0.0.0", "255.255.255.255"):
                 self.src_host += "/32"
         if self.src_portgroup:
-            self.src_portgroup = self.src_portgroup.strip("portgroup ")
+            self.src_portgroup = self.src_portgroup.replace("portgroup ", "")
         if self.dst_group:
-            self.dst_group = self.dst_group.strip("addrgroup ")
+            self.dst_group = self.dst_group.replace("addrgroup ", "")
         if self.dst_host:
-            self.dst_host = self.dst_host.strip("host ")
+            self.dst_host = self.dst_host.replace("host ", "")
             if self.dst_host not in ("0.0.0.0", "255.255.255.255"):
                 self.dst_host += "/32"
         if self.dst_portgroup:
-            self.dst_portgroup = self.dst_portgroup.strip("portgroup ")
+            self.dst_portgroup = self.dst_portgroup.replace("portgroup ", "")
 
         # Create CIDR if needed
         try:
@@ -319,7 +352,6 @@ class ACE:
     def destination_in(self, subnet, addr_groups):
         if self.dst_group:
             my_destinations = addr_groups.get(self.dst_group)
-
             if my_destinations:
                 for network in my_destinations:
                     try:
@@ -346,14 +378,79 @@ class ACE:
                 my_destination = ip_network(my_destination, strict=False)
             except ValueError as e:
                 return f"ERR: {e}"
+            except UnboundLocalError as e:
+                print(e)
+                print(self.output_cidr())
+                sys.exit()
 
             if my_destination.subnet_of(subnet):
                 return "subnet"
             if my_destination.supernet_of(subnet):
                 return "supernet"
 
-    def to_contract(self, mig_data):
-        return self.output_cidr()
+    def to_contract(self, acl, tenant, src_epg, dst_epg):
+        source, destination, source_port, destination_port = "", "", "", ""
+
+        # SOURCE
+        if self.src_group:
+            source = self.src_group
+        elif self.src_host:
+            source = self.src_host
+        elif self.src_any:
+            source = "0.0.0.0/0"
+        elif self.src_cidr:
+            source = self.src_cidr
+
+        if self.src_portgroup:
+            source_port = self.src_portgroup
+        # elif self.src_port_match:
+        #     source_port = f"{self.src_port_match} "
+        if self.src_port_start and self.src_port_end:
+            source_port = f"{self.src_port_start} - {self.src_port_end}"
+        elif self.src_port:
+            source_port = f"{self.src_port}"
+
+        # DESTINATION
+        if self.dst_group:
+            destination = self.dst_group
+        elif self.dst_host:
+            destination = self.dst_host
+        elif self.dst_any:
+            destination = "0.0.0.0/0"
+        elif self.dst_cidr:
+            destination = self.dst_cidr
+
+        if self.dst_portgroup:
+            destination_port = self.dst_portgroup
+        # elif self.dst_port_match:
+        #     destination_port_match = f"{self.dst_port_match} "
+        elif self.dst_port_start and self.dst_port_end:
+            destination_port = f"{self.dst_port_start} - {self.dst_port_end}"
+        elif self.dst_port:
+            destination_port = f"{self.dst_port}"
+
+        contract = {
+            "acl_name": acl.name,
+            "action": self.action,
+            "protocol": self.protocol,
+            "src_aci": "",
+            "src_tenant": tenant,
+            "src_epg": src_epg,
+            "src_address": source,
+            "src_port": source_port,
+            "dst_tenant": tenant,
+            "dst_epg": dst_epg,
+            "dst_aci": "",
+            "dst_address": destination,
+            "dst_port": destination_port,
+            "flags": self.tcp_flag,
+            "contract": "",
+            "access-list": "",
+            "ace": "",
+            "Notes": "",
+            "Completed": "",
+        }
+        return contract
 
 
 @dataclass()

@@ -1,6 +1,4 @@
-"""pan_deduper.cli"""
-import asyncio
-import platform
+"""sel_acl.cli"""
 import sys
 from dataclasses import dataclass
 from typing import Optional
@@ -22,11 +20,6 @@ class Params:
     vlan: int
     acls: str
     addrgroups: str
-
-
-# friggin windows
-if platform.system() == "Windows":
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 
 # @app.command("test", help="Initial tests")

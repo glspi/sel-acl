@@ -4,10 +4,16 @@
 TODO:
 crit:
 'secondary' in subnet
-addrgroup lookup to match subnets
+check group matching
+don't include if not migrating
+acl compare
+change any to 0.0.0.0/0 on post-init
+tests for group matching
 re/split dummy
 
+
 eh:
+color on output
 0.0.0.0/255.255.255.255/bootps/pc in nexus
 supernet - what to do?! (ignore normally but maybe not)
 None in all_subnets again

@@ -1,14 +1,140 @@
-ip access-list extended my-test-acl
+ip access-list extended From-Vlan1
  remark ### MY REMARK
- permit ip 10.0.0.0 0.255.255.255 10.1.0.0 0.0.255.255
- permit tcp 10.0.0.0 0.255.255.255 10.1.0.0 0.0.255.255
- permit udp 10.0.0.0 0.255.255.255 10.1.0.0 0.0.255.255
- permit icmp 10.0.0.0 0.255.255.255 10.1.0.0 0.0.255.255
- permit tcp 10.0.0.0 0.255.255.255 eq 443 10.1.0.0 0.0.255.255
- permit tcp 10.0.0.0 0.255.255.255 eq 443 10.1.0.0 0.0.255.255 eq 443
- permit ip host 10.10.10.10 host 11.11.11.11 log
- deny   ip any any log 
+ permit ip 10.1.1.0 0.0.0.255 99.99.99.0 0.0.0.255
+ remark ### to vlan2
+ permit tcp 10.1.1.0 0.0.0.255 10.1.2.0 0.0.0.255 eq 443
+ permit tcp 10.1.1.0 0.0.0.255 eq 443 10.1.2.0 0.0.0.127
+ permit ip 10.1.1.0 0.0.0.255 addrgroup dst_grp2 portgroup dst_port2
+ permit icmp any any
+ remark ### to vlan3
+ permit tcp 10.1.1.0 0.0.0.255 eq 443 10.1.3.32 0.0.0.31 established
+ permit tcp 10.1.1.0 0.0.0.255 eq 443 10.1.3.0 0.0.0.255 established
+ permit udp host 10.1.1.5 host 10.1.3.5
+ remark ### to any
+ deny ip any any log
  permit udp host 0.0.0.0 eq bootpc host 255.255.255.255 eq bootps
- permit tcp addrgroup source_object_group portgroup source_portgroup host 8.8.8.8
- permit tcp addrgroup source_object_group portgroup source_portgroup host 8.8.8.8 established
- permit tcp 10.105.1.0 0.0.0.255 eq 443 10933 10.105.113.128 0.0.0.127 established
+ remark ### to vlan4
+ permit udp host 10.1.1.5 10.1.4.0 0.0.0.127
+ remark ### to vlan5
+ permit ip host 10.1.1.5 10.1.5.0 0.0.0.255
+ remark ### to vlan6
+ permit ip addrgroup src_grp1 portgroup src_port1 host 10.1.6.5
+ permit ip 10.1.1.0 0.0.0.255 addrgroup dst_grp1 portgroup dst_port1
+ permit tcp 10.1.1.0 0.0.0.255 eq 443 10933 host 10.1.6.5 established
+
+ip access-list extended From-Vlan2
+ remark ### MY REMARK
+ permit ip 10.1.1.0 0.0.0.255 99.99.99.0 0.0.0.255
+ remark ### to vlan2
+ permit tcp 10.1.1.0 0.0.0.255 10.1.2.0 0.0.0.255
+ permit ip 10.1.1.0 0.0.0.255 addrgroup dst_grp2 portgroup dst_port2
+ permit icmp any any
+ remark ### to vlan3
+ permit tcp 10.1.1.0 0.0.0.255 eq 443 10.1.3.32 0.0.0.31 established
+ permit tcp 10.1.1.0 0.0.0.255 eq 443 10.1.3.0 0.0.0.255 established
+ permit udp host 10.1.1.5 host 10.1.3.5
+ remark ### to any
+ deny ip any any log
+ permit udp host 0.0.0.0 eq bootpc host 255.255.255.255 eq bootps
+ remark ### to vlan4
+ permit udp host 10.1.1.5 10.1.4.0 0.0.0.127
+ remark ### to vlan5
+ permit ip host 10.1.1.5 10.1.5.0 0.0.0.255
+ remark ### to vlan6
+ permit ip addrgroup src_grp1 portgroup src_port1 host 10.1.6.5
+ permit ip 10.1.1.0 0.0.0.255 addrgroup dst_grp1 portgroup dst_port1
+ permit tcp 10.1.1.0 0.0.0.255 eq 443 10933 host 10.1.6.5 established
+
+ip access-list extended From-Vlan3
+ remark ### MY REMARK
+ permit ip 10.1.1.0 0.0.0.255 99.99.99.0 0.0.0.255
+ remark ### to vlan2
+ permit tcp 10.1.1.0 0.0.0.255 10.1.2.0 0.0.0.255
+ permit ip 10.1.1.0 0.0.0.255 addrgroup dst_grp2 portgroup dst_port2
+ permit icmp any any
+ remark ### to vlan3
+ permit tcp 10.1.1.0 0.0.0.255 eq 443 10.1.3.32 0.0.0.31 established
+ permit tcp 10.1.1.0 0.0.0.255 eq 443 10.1.3.0 0.0.0.255 established
+ permit udp host 10.1.1.5 host 10.1.3.5
+ remark ### to any
+ deny ip any any log
+ permit udp host 0.0.0.0 eq bootpc host 255.255.255.255 eq bootps
+ remark ### to vlan4
+ permit udp host 10.1.1.5 10.1.4.0 0.0.0.127
+ remark ### to vlan5
+ permit ip host 10.1.1.5 10.1.5.0 0.0.0.255
+ remark ### to vlan6
+ permit ip addrgroup src_grp1 portgroup src_port1 host 10.1.6.5
+ permit ip 10.1.1.0 0.0.0.255 addrgroup dst_grp1 portgroup dst_port1
+ permit tcp 10.1.1.0 0.0.0.255 eq 443 10933 host 10.1.6.5 established
+
+ip access-list extended From-Vlan4
+ remark ### MY REMARK
+ permit ip 10.1.1.0 0.0.0.255 99.99.99.0 0.0.0.255
+ remark ### to vlan2
+ permit tcp 10.1.1.0 0.0.0.255 10.1.2.0 0.0.0.255
+ permit ip 10.1.1.0 0.0.0.255 addrgroup dst_grp2 portgroup dst_port2
+ permit icmp any any
+ remark ### to vlan3
+ permit tcp 10.1.1.0 0.0.0.255 eq 443 10.1.3.32 0.0.0.31 established
+ permit tcp 10.1.1.0 0.0.0.255 eq 443 10.1.3.0 0.0.0.255 established
+ permit udp host 10.1.1.5 host 10.1.3.5
+ remark ### to any
+ deny ip any any log
+ permit udp host 0.0.0.0 eq bootpc host 255.255.255.255 eq bootps
+ remark ### to vlan4
+ permit udp host 10.1.1.5 10.1.4.0 0.0.0.127
+ remark ### to vlan5
+ permit ip host 10.1.1.5 10.1.5.0 0.0.0.255
+ remark ### to vlan6
+ permit ip addrgroup src_grp1 portgroup src_port1 host 10.1.6.5
+ permit ip 10.1.1.0 0.0.0.255 addrgroup dst_grp1 portgroup dst_port1
+ permit tcp 10.1.1.0 0.0.0.255 eq 443 10933 host 10.1.6.5 established
+
+
+ip access-list extended From-Vlan5
+ remark ### MY REMARK
+ permit ip 10.1.1.0 0.0.0.255 99.99.99.0 0.0.0.255
+ remark ### to vlan2
+ permit tcp 10.1.1.0 0.0.0.255 10.1.2.0 0.0.0.255
+ permit ip 10.1.1.0 0.0.0.255 addrgroup dst_grp2 portgroup dst_port2
+ permit icmp any any
+ remark ### to vlan3
+ permit tcp 10.1.1.0 0.0.0.255 eq 443 10.1.3.32 0.0.0.31 established
+ permit tcp 10.1.1.0 0.0.0.255 eq 443 10.1.3.0 0.0.0.255 established
+ permit udp host 10.1.1.5 host 10.1.3.5
+ remark ### to any
+ deny ip any any log
+ permit udp host 0.0.0.0 eq bootpc host 255.255.255.255 eq bootps
+ remark ### to vlan4
+ permit udp host 10.1.1.5 10.1.4.0 0.0.0.127
+ remark ### to vlan5
+ permit ip host 10.1.1.5 10.1.5.0 0.0.0.255
+ remark ### to vlan6
+ permit ip addrgroup src_grp1 portgroup src_port1 host 10.1.6.5
+ permit ip 10.1.1.0 0.0.0.255 addrgroup dst_grp1 portgroup dst_port1
+ permit tcp 10.1.1.0 0.0.0.255 eq 443 10933 host 10.1.6.5 established
+
+ip access-list extended From-Vlan6
+ remark ### MY REMARK
+ permit ip 10.1.1.0 0.0.0.255 99.99.99.0 0.0.0.255
+ remark ### to vlan2
+ permit tcp 10.1.1.0 0.0.0.255 10.1.2.0 0.0.0.255
+ permit ip 10.1.1.0 0.0.0.255 addrgroup dst_grp2 portgroup dst_port2
+ permit icmp any any
+ remark ### to vlan3
+ permit tcp 10.1.1.0 0.0.0.255 eq 443 10.1.3.32 0.0.0.31 established
+ permit tcp 10.1.1.0 0.0.0.255 eq 443 10.1.3.0 0.0.0.255 established
+ permit udp host 10.1.1.5 host 10.1.3.5
+ remark ### to any
+ deny ip any any log
+ permit udp host 0.0.0.0 eq bootpc host 255.255.255.255 eq bootps
+ remark ### to vlan4
+ permit udp host 10.1.1.5 10.1.4.0 0.0.0.127
+ remark ### to vlan5
+ permit ip host 10.1.1.5 10.1.5.0 0.0.0.255
+ remark ### to vlan6
+ permit ip addrgroup src_grp1 portgroup src_port1 host 10.1.6.5
+ permit ip 10.1.1.0 0.0.0.255 addrgroup dst_grp1 portgroup dst_port1
+ permit tcp 10.1.1.0 0.0.0.255 eq 443 10933 host 10.1.6.5 established
+
