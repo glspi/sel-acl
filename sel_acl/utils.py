@@ -258,13 +258,12 @@ def ew_checker(
                     src_dest_in = ace.destination_in(
                         ip_network(subnet, strict=False), addr_groups
                     )
-                else:
+                else:  # direction == "out"
                     src_dest_in = ace.source_in(
                         ip_network(subnet, strict=False), addr_groups
                     )
 
                 if src_dest_in == "subnet":
-                    # print(f"{mig_data.vlan_name} vlan/subnet matches destination: {subnet}")
                     contract = ace.to_contract(
                         acl=acl,
                         tenant=mig_data.tenant,
@@ -280,9 +279,7 @@ def ew_checker(
                             subnet_str += subnet_
                         else:
                             subnet_str += f", {subnet_}"
-                    key = f"{mig_data.vlan_name}   ({subnet_str})"
                     temp = {"vlan_name": mig_data.vlan_name, "subnet":subnet_str, "match": f"{acl.name}{ace.output_cidr()}"}
-                    #ew_supernets.append({key: ace})
                     ew_supernets.append(temp)
 
     return ew_aces, ew_contracts, ew_supernets

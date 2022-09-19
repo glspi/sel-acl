@@ -260,7 +260,7 @@ class ACE:
     def __post_init__(self):
         # Initialize ACE in a more reusable way
         if self.remark:
-            self.remark = self.remark.strip("remark ")
+            self.remark = self.remark.replace("remark ", "")
         if self.src_group:
             self.src_group = self.src_group.replace("addrgroup ", "")
         if self.src_host:

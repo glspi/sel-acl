@@ -14,7 +14,6 @@ def test_regex():
     test_acl.acl = None
     correct_acl = correct_asserts.test_acl
 
-    # print(correct_asserts.test_acl)
     assert test_acl == correct_acl
 
 

@@ -7,6 +7,7 @@ crit:
 acl compare
 change any to 0.0.0.0/0 on post-init
 more tests for group matching
+grab addr/portgroups to be moved
 
 eh:
 re/split dummy
