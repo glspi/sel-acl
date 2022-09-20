@@ -1,7 +1,7 @@
 """pan_deduper"""
 import setuptools
 
-__version__ = "0.0.5"
+__version__ = "0.0.6"
 __author__ = "Ryan Gillespie"
 
 setuptools.setup(
@@ -12,7 +12,7 @@ setuptools.setup(
         "typer==0.6.1",
         "openpyxl==3.0.10",
         "ciscoconfparse==1.6.40",
-        "rich==12.5.1"
+        "rich==12.5.1",
     ],
     classifiers=[
         "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",

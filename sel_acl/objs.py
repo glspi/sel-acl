@@ -4,6 +4,7 @@ import re
 import sys
 from dataclasses import dataclass, field
 from ipaddress import ip_network
+from itertools import product
 
 import ciscoconfparse
 import openpyxl
@@ -543,14 +544,46 @@ class ACL:
                     print("^^ERROR WITH ABOVE LINE:^^")
                 else:
                     ace = ACE(**results.groupdict())
-                    self.aces.append(ace)
+
+                    # Some rules might be 'eq port1 port2 port3' which should be split into extra rules
+                    if ace.src_port_match == "eq" or ace.dst_port_match == "eq":
+                        if ace.src_port:
+                            src_ports = ace.src_port.split()
+                        else:
+                            src_ports = None
+                        if ace.dst_port:
+                            dst_ports = ace.dst_port.split()
+                        else:
+                            dst_ports = None
+
+                        if src_ports and not dst_ports:
+                            for port in src_ports:
+                                temp = results.groupdict()
+                                temp["src_port"] = port
+                                new_ace = ACE(**temp)
+                                self.aces.append(new_ace)
+                        elif not src_ports and dst_ports:
+                            for port in dst_ports:
+                                temp = results.groupdict()
+                                temp["dst_port"] = port
+                                new_ace = ACE(**temp)
+                                self.aces.append(new_ace)
+                        elif src_ports and dst_ports:
+                            for rule in product(src_ports, dst_ports):
+                                temp = results.groupdict()
+                                temp["src_port"] = rule[0]
+                                temp["dst_port"] = rule[1]
+                                new_ace = ACE(**temp)
+                                self.aces.append(new_ace)
+                    else:
+                        self.aces.append(ace)
 
     def __contains__(self, find_ace):
         for ace in self.aces:
             if ace == find_ace:
                 return True
 
-    def groups(self):
+    def obj_groups(self):
         addr_names = self.addr_groups()
         portgroup_names = self.port_groups()
         return addr_names, portgroup_names

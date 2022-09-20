@@ -5,10 +5,9 @@ from ipaddress import ip_network
 from typing import Dict, List
 
 from ciscoconfparse import CiscoConfParse
+from openpyxl.styles import PatternFill
 from openpyxl.workbook.views import BookView
 from openpyxl.workbook.workbook import Workbook
-from openpyxl.styles import PatternFill
-
 from rich.pretty import pprint
 
 from sel_acl.objs import ACE, ACL, CustomWorksheet, MigrationData
@@ -119,6 +118,7 @@ def remove_self(vlan_name: str, ew_mig_data: List[MigrationData]):
 #     print(new_acl_out)
 #
 
+
 def addr_groups_to_nexus(names: List[str], addr_groups: Dict[str, Dict[str, List]]):
     groups = {}
     for name in names:
@@ -132,7 +132,9 @@ def addr_groups_to_nexus(names: List[str], addr_groups: Dict[str, Dict[str, List
                     groups[name] += f" {item}\n"
         else:
             groups[name] = " Could not find!"
-            print(f"Could not find address group: {name} but ACL refers to it...skipping.")
+            print(
+                f"Could not find address group: {name} but ACL refers to it...skipping."
+            )
 
     return groups
 
@@ -153,31 +155,32 @@ def port_groups_to_nexus(names: List[str], port_groups: Dict[str, Dict[str, List
                     groups[name] += f" eq {item}\n"
         else:
             groups[name] = " Could not find!"
-            print(f"Could not find address group: {name} but ACL refers to it...skipping.")
+            print(
+                f"Could not find address group: {name} but ACL refers to it...skipping."
+            )
 
     return groups
 
 
-
 def output_to_file(acl: ACL, name: str, addr_groups, port_groups):
-        output = acl.output_cidr(name=name)
-        addr_group_names, port_group_names = acl.groups()
+    output = acl.output_cidr(name=name)
+    addr_group_names, port_group_names = acl.obj_groups()
 
-        addr_groups = addr_groups_to_nexus(addr_group_names, addr_groups)
-        port_groups = port_groups_to_nexus(port_group_names, port_groups)
+    addr_groups = addr_groups_to_nexus(addr_group_names, addr_groups)
+    port_groups = port_groups_to_nexus(port_group_names, port_groups)
 
-        output += "\n\nAddress-Groups: \n"
-        for obj_group in addr_groups.values():
-            output += obj_group
+    output += "\n\nAddress-Groups: \n"
+    for obj_group in addr_groups.values():
+        output += obj_group
 
-        output += "\n\nPort-Groups: \n"
-        for group in port_groups.values():
-            output += group
+    output += "\n\nPort-Groups: \n"
+    for group in port_groups.values():
+        output += group
 
-        filename = name + ".ios"
-        with open(filename, "w") as fout:
-            fout.write(output)
-        print(f"File created at: {filename}")
+    filename = name + ".ios"
+    with open(filename, "w") as fout:
+        fout.write(output)
+    print(f"File created at: {filename}")
 
 
 def ns_ew_combined(ws, mig_data, acl, addr_groups, direction: str = "in"):
@@ -215,7 +218,7 @@ def create_contracts(ew_aces, ew_contracts, acl, filename):
         create_contract_file(contracts=ew_contracts, filename=filename)
 
 
-def print_and_remark_acl(ew_aces, acl):
+def output_and_remark_acl(ew_aces, acl, name: str, addr_groups, port_groups):
     # Insert remarks so we can find these to delete after migrations
     for ace in ew_aces:
         if ace in acl.aces:
@@ -234,10 +237,12 @@ def print_and_remark_acl(ew_aces, acl):
             if ace in acl.aces:
                 print(ace.output_cidr())
 
-    new_acl = acl.output_cidr(name=f"New-NS-{acl.name}")
-    print("\n\nNew North/South ACL:\n")
-    print("---------------------")
-    print(new_acl)
+    output_to_file(
+        acl=acl,
+        name=f"New-NS-w-EW-Remarked-{acl.name}",
+        addr_groups=addr_groups,
+        port_groups=port_groups,
+    )
 
 
 def run_main(excel_filename: str, vlan: int, acls: str, obj_groups: str, nsew: str):
@@ -259,10 +264,12 @@ def run_main(excel_filename: str, vlan: int, acls: str, obj_groups: str, nsew: s
         print("CIDR Output..")
         print("--------------")
         for acl in (acl_in, acl_out):
-            output_to_file(acl=acl, name=f"New-NS-{acl.name}", addr_groups=addr_groups, port_groups=port_groups)
-        #
-        # acl_in.output_to_file(name=f"New-NS-{acl_in.name}")
-        # acl_out.output_to_file(name=f"New-NS-{acl_out.name}")
+            output_to_file(
+                acl=acl,
+                name=f"New-NS-{acl.name}",
+                addr_groups=addr_groups,
+                port_groups=port_groups,
+            )
 
     if nsew == "ew":
         print("East/West...")
@@ -293,15 +300,17 @@ def run_main(excel_filename: str, vlan: int, acls: str, obj_groups: str, nsew: s
         print("North/South...")
         print("--------------")
 
-        ew_aces, _ = ns_ew_combined(
-            ws=ws, mig_data=mig_data, addr_groups=addr_groups, acl=acl_in
-        )
-        print_and_remark_acl(ew_aces=ew_aces, acl=acl_in)
-
-        ew_aces, _ = ns_ew_combined(
-            ws=ws, mig_data=mig_data, addr_groups=addr_groups, acl=acl_out
-        )
-        print_and_remark_acl(ew_aces=ew_aces, acl=acl_out)
+        for acl in (acl_in, acl_out):
+            ew_aces, _ = ns_ew_combined(
+                ws=ws, mig_data=mig_data, addr_groups=addr_groups, acl=acl
+            )
+            output_and_remark_acl(
+                acl=acl,
+                name=f"New-NS-{acl.name}",
+                addr_groups=addr_groups,
+                port_groups=port_groups,
+                ew_aces=ew_aces,
+            )
 
 
 def create_contract_file(filename: str, contracts: List[Dict[str, str]]):
@@ -374,7 +383,11 @@ def ew_checker(
                             subnet_str += subnet_
                         else:
                             subnet_str += f", {subnet_}"
-                    temp = {"vlan_name": mig_data.vlan_name, "subnet":subnet_str, "match": f"{acl.name}{ace.output_cidr()}"}
+                    temp = {
+                        "vlan_name": mig_data.vlan_name,
+                        "subnet": subnet_str,
+                        "match": f"{acl.name}{ace.output_cidr()}",
+                    }
                     ew_supernets.append(temp)
 
     return ew_aces, ew_contracts, ew_supernets

@@ -1,12 +1,6 @@
 import correct_asserts
-from rich.pretty import pprint
 
-from sel_acl.utils import (
-    create_contract_file,
-    get_acl_from_file,
-    get_initial_data,
-    ns_ew_combined,
-)
+from sel_acl.utils import get_acl_from_file, get_initial_data, ns_ew_combined
 
 
 def test_regex():
@@ -17,24 +11,19 @@ def test_regex():
     assert test_acl == correct_acl
 
 
-def test_test():
-    t = get_acl_from_file("huh.txt", "test")
-    t.acl = None
-    pprint(t)
-
-
 def test_groups():
     filename = "./tests/acl_tests.txt"
     test_acl = get_acl_from_file(filename, "From-Vlan1")
     test_acl.acl = None
-    assert test_acl.groups() == correct_asserts.correct_groups
+    print(test_acl)
+    assert test_acl.obj_groups() == correct_asserts.correct_groups
 
 
-def test_eastwest():
+def test_east_west():
     correct_contracts = []
     contracts = []
 
-    #for num in [1]:
+    # for num in [1]:
     for num in [1, 2, 3, 4, 5, 6, 7]:
         filename = "./tests/acl_tests.txt"
         test_acl = get_acl_from_file(filename, f"From-Vlan{num}")
@@ -61,7 +50,7 @@ def test_eastwest():
 
     assert contracts == correct_contracts
 
-    #UNCOMMENT AND RUN MANUALLY TO GET CONTRACT OUTPUT
+    # UNCOMMENT AND RUN MANUALLY TO GET CONTRACT OUTPUT
     # print("\nACES:")
     # print("------")
     # for ace in ew_aces:
@@ -82,6 +71,5 @@ def test_eastwest():
 
 
 if __name__ == "__main__":
-    #test_groups()
-    #test_eastwest()
-    test_test()
+    test_groups()
+    # test_eastwest()

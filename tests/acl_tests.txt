@@ -21,6 +21,8 @@ ip access-list extended From-Vlan1
  permit ip addrgroup src_grp1 portgroup src_port1 host 10.1.6.5
  permit ip 10.1.1.0 0.0.0.255 addrgroup dst_grp1 portgroup dst_port1
  permit tcp 10.1.1.0 0.0.0.255 eq 443 10933 host 10.1.6.5 established
+ permit tcp 10.1.1.0 0.0.0.255 eq 443 10933 host 10.1.6.5 eq 777 888
+ permit tcp 10.1.1.0 0.0.0.255 10.1.6.0 0.0.0.255 eq 777 888
 
 ip access-list extended From-Vlan2
  remark ### MY REMARK
@@ -44,6 +46,7 @@ ip access-list extended From-Vlan2
  permit ip addrgroup src_grp1 portgroup src_port1 host 10.1.6.5
  permit ip 10.1.1.0 0.0.0.255 addrgroup dst_grp1 portgroup dst_port1
  permit tcp 10.1.1.0 0.0.0.255 eq 443 10933 host 10.1.6.5 established
+ permit tcp 10.1.1.0 0.0.0.255 eq 443 10933 host 10.1.6.5 eq 777 888
 
 ip access-list extended From-Vlan3
  remark ### MY REMARK
@@ -67,6 +70,7 @@ ip access-list extended From-Vlan3
  permit ip addrgroup src_grp1 portgroup src_port1 host 10.1.6.5
  permit ip 10.1.1.0 0.0.0.255 addrgroup dst_grp1 portgroup dst_port1
  permit tcp 10.1.1.0 0.0.0.255 eq 443 10933 host 10.1.6.5 established
+ permit tcp 10.1.1.0 0.0.0.255 eq 443 10933 host 10.1.6.5 eq 777 888
 
 ip access-list extended From-Vlan4
  remark ### MY REMARK
@@ -90,6 +94,7 @@ ip access-list extended From-Vlan4
  permit ip addrgroup src_grp1 portgroup src_port1 host 10.1.6.5
  permit ip 10.1.1.0 0.0.0.255 addrgroup dst_grp1 portgroup dst_port1
  permit tcp 10.1.1.0 0.0.0.255 eq 443 10933 host 10.1.6.5 established
+ permit tcp 10.1.1.0 0.0.0.255 eq 443 10933 host 10.1.6.5 eq 777 888
 
 
 ip access-list extended From-Vlan5
@@ -114,6 +119,7 @@ ip access-list extended From-Vlan5
  permit ip addrgroup src_grp1 portgroup src_port1 host 10.1.6.5
  permit ip 10.1.1.0 0.0.0.255 addrgroup dst_grp1 portgroup dst_port1
  permit tcp 10.1.1.0 0.0.0.255 eq 443 10933 host 10.1.6.5 established
+ permit tcp 10.1.1.0 0.0.0.255 eq 443 10933 host 10.1.6.5 eq 777 888
 
 ip access-list extended From-Vlan6
  remark ### MY REMARK
@@ -137,4 +143,4 @@ ip access-list extended From-Vlan6
  permit ip addrgroup src_grp1 portgroup src_port1 host 10.1.6.5
  permit ip 10.1.1.0 0.0.0.255 addrgroup dst_grp1 portgroup dst_port1
  permit tcp 10.1.1.0 0.0.0.255 eq 443 10933 host 10.1.6.5 established
-
+ permit tcp 10.1.1.0 0.0.0.255 eq 443 10933 host 10.1.6.5 eq 777 888
