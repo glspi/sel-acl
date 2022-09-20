@@ -18,7 +18,7 @@ class Params:
     excel_filename: str
     vlan: int
     acls: str
-    addr_groups: str
+    obj_groups: str
 
 
 @app.command(
@@ -44,7 +44,7 @@ def north_south(
         excel_filename=Params.excel_filename,
         vlan=Params.vlan,
         acls=Params.acls,
-        addr_groups=Params.addr_groups,
+        obj_groups=Params.obj_groups,
         nsew="ns",
     )
 
@@ -59,7 +59,7 @@ def east_west():
         excel_filename=Params.excel_filename,
         vlan=Params.vlan,
         acls=Params.acls,
-        addr_groups=Params.addr_groups,
+        obj_groups=Params.obj_groups,
         nsew="ew",
     )
 
@@ -74,7 +74,7 @@ def cidr():
         excel_filename=Params.excel_filename,
         vlan=Params.vlan,
         acls=Params.acls,
-        addr_groups=Params.addr_groups,
+        obj_groups=Params.obj_groups,
         nsew="cidr",
     )
 
@@ -102,7 +102,7 @@ def main(
         prompt="Filename containing the ACL's: ",
         metavar="Filename containing the ACL's",
     ),
-    addr_groups: Optional[str] = typer.Option(
+    obj_groups: Optional[str] = typer.Option(
         None,
         "--groups",
         "-g",
@@ -113,7 +113,7 @@ def main(
     Params.excel_filename = excel_filename
     Params.vlan = vlan
     Params.acls = acls
-    Params.addr_groups = addr_groups
+    Params.obj_groups = obj_groups
 
 
 if __name__ == "__main__":

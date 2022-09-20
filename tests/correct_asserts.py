@@ -1,5 +1,7 @@
 from sel_acl.objs import ACE, ACL
 
+correct_groups = (['dst_grp2', 'src_grp1', 'dst_grp1'], ['dst_port2', 'src_port1', 'dst_port1'])
+
 vlan1_contracts = [
     {
         "acl_name": "From-Vlan1",

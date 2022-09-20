@@ -16,47 +16,47 @@ ACL_RE_PATTERN = r"""
                 (?P<remark>remark\s+.*)                                             # Remark
                 |
                 (
-                (?P<action>permit|deny)\s+                                         # Action
-                (?P<protocol>\S+)\s+                                                # Protocol
+                (?P<action>permit|deny)\s+                                              # Action
+                (?P<protocol>\S+)\s+                                                    # Protocol
                 (
-                (?P<src_group>addrgroup\s\S+)                                       # Source addrgroup
-                |(?P<src_wld>\d+\.\d+\.\d+\.\d+\s+\d+\.\d+\.\d+\.\d+)               # OR Source Network
-                |(?P<src_host>host\s+\d+\.\d+\.\d+\.\d+)                            # OR 'host x.x.x.x'
-                |(?P<src_any>any)                                                   # OR 'any'
+                (?P<src_group>addrgroup\s\S+)                                           # Source addrgroup
+                |(?P<src_wld>\d+\.\d+\.\d+\.\d+\s+\d+\.\d+\.\d+\.\d+)                   # OR Source Network
+                |(?P<src_host>host\s+\d+\.\d+\.\d+\.\d+)                                # OR 'host x.x.x.x'
+                |(?P<src_any>any)                                                       # OR 'any'
                 )
                 (\s+)?
                 (
-                    (?P<src_portgroup>portgroup\s\S+)                                  # OR Source portgroup
+                    (?P<src_portgroup>portgroup\s\S+)                                   # OR Source portgroup
                     |   
                     (
-                        (?P<src_port_match>(eq|neq|precedence|range|tos|lt|gt))\s+     # Source port Match ('eq' normally)
+                        (?P<src_port_match>(eq|neq|precedence|range|tos|lt|gt))\s+      # Source port Match ('eq' normally)
                         (
-                        (?P<src_port_start>(?<=range\s)\S+)\s+(?P<src_port_end>\S+)         # Source port range 
-                        |(?P<src_port>(?<!range\s)(?!\d+\.\d+\.\d+\.\d+).+)                                    # OR Source port (only)
+                        (?P<src_port_start>(?<=range\s)\S+)\s+(?P<src_port_end>\S+)     # Source port range 
+                        |(?P<src_port>(?<!range\s)(?!\d+\.\d+\.\d+\.\d+).+)             # OR Source port (only)
                         )
                     )
                 )?
                 (\s+)   
                 (
-                (?P<dst_group>addrgroup\s\S+)                                       # Destination addrgroup
-                |(?P<dst_wld>\d+\.\d+\.\d+\.\d+\s+\d+\.\d+\.\d+\.\d+)               # OR Destination Network
-                |(?P<dst_host>host\s+\d+\.\d+\.\d+\.\d+)                            # OR 'host x.x.x.x'
-                |(?P<dst_any>any)                                                   # OR 'any'
+                (?P<dst_group>addrgroup\s\S+)                                           # Destination addrgroup
+                |(?P<dst_wld>\d+\.\d+\.\d+\.\d+\s+\d+\.\d+\.\d+\.\d+)                   # OR Destination Network
+                |(?P<dst_host>host\s+\d+\.\d+\.\d+\.\d+)                                # OR 'host x.x.x.x'
+                |(?P<dst_any>any)                                                       # OR 'any'
                 )
                 (?:\s+)?
                 (
-                    (?P<dst_portgroup>portgroup\s\S+)                                  # OR Destination portgroup
+                    (?P<dst_portgroup>portgroup\s\S+)                                   # OR Destination portgroup
                     |
                     (
-                        (?P<dst_port_match>(eq|neq|precedence|range|tos|lt|gt))\s+     # Destination port Match ('eq' normally)
+                        (?P<dst_port_match>(eq|neq|precedence|range|tos|lt|gt))\s+      # Destination port Match ('eq' normally)
                         (
-                        (?P<dst_port_start>(?<=range\s)\S+)\s+(?P<dst_port_end>\S+)         # Destination port range    
-                        |(?P<dst_port>(?<!range\s)\S+)                                     # OR Destination port (only)
+                        (?P<dst_port_start>(?<=range\s)\S+)\s+(?P<dst_port_end>\S+)     # Destination port range    
+                        |(?P<dst_port>(?<!range\s).+)                                   # OR Destination port (only)
                         )
                     )
                 )?
                 (?:\s+)?
-                (?P<flags_match>(match-any|match-all)\s+)?                             # match tcp flags
+                (?P<flags_match>(match-any|match-all)\s+)?                              # match tcp flags
                 (?P<tcp_flag>(((\+|-|)ack(\s*?)|(\+|-|)established(\s*?)|(\+|-|)fin(\s*?)|(\+|-|)fragments(\s*?)|(\+|-|)psh(\s*?)|(\+|-|)rst(\s*?)|(\+|-|)syn(\s*?)|urg(\s*?))+))?   # mostly just 'established'
                 (?P<icmp_type>(administratively-prohibited|echo-reply|echo|mask-request|packet-too-big|parameter-problem|port-unreachable|redirect|router-advertisement|router-solicitation|time-exceeded|ttl-exceeded|unreachable))?    # icmp type
                 (?P<log>(log-input|log))?                                               # log
@@ -373,6 +373,24 @@ class ACE:
 
         return output
 
+    def addr_groups(self):
+        names = []
+        if self.src_group:
+            names.append(self.src_group)
+        if self.dst_group:
+            names.append(self.dst_group)
+
+        return names
+
+    def port_groups(self):
+        names = []
+        if self.src_portgroup:
+            names.append(self.src_portgroup)
+        if self.dst_group:
+            names.append(self.dst_portgroup)
+
+        return names
+
     def destination_in(self, subnet, addr_groups):
         if self.dst_group:
             my_destinations = addr_groups.get(self.dst_group)
@@ -514,6 +532,7 @@ class ACL:
     acl: ciscoconfparse.models_cisco.IOSCfgLine = None
     aces: list[ACE] = field(default_factory=list)
     rec = re.compile(ACL_RE_PATTERN, re.X)
+    groups = None
 
     def __post_init__(self):
         if self.acl:
@@ -530,6 +549,33 @@ class ACL:
         for ace in self.aces:
             if ace == find_ace:
                 return True
+
+    def groups(self):
+        addr_names = self.addr_groups()
+        portgroup_names = self.port_groups()
+        return addr_names, portgroup_names
+
+    def addr_groups(self):
+        addr_names = []
+        for ace in self.aces:
+            names = ace.addr_groups()
+            for name in names:
+                if name is not None and name not in addr_names:
+                    addr_names.append(name)
+        return addr_names
+
+    def port_groups(self):
+        portgroup_names = []
+        for ace in self.aces:
+            names = ace.port_groups()
+            for name in names:
+                if name is not None and name not in portgroup_names:
+                    portgroup_names.append(name)
+        return portgroup_names
+
+    def output_groups(self):
+        addr_group_names = self.addr_groups()
+        return addr_group_names
 
     def output_cidr(self, name: str):
         output = f"ip access-list {name}\n"

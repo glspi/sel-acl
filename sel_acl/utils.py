@@ -9,6 +9,8 @@ from openpyxl.workbook.views import BookView
 from openpyxl.workbook.workbook import Workbook
 from openpyxl.styles import PatternFill
 
+from rich.pretty import pprint
+
 from sel_acl.objs import ACE, ACL, CustomWorksheet, MigrationData
 
 
@@ -57,7 +59,35 @@ def get_addrgroups_from_file(filename: str) -> Dict:
     return addr_groups
 
 
-def get_initial_data(excel_filename: str, vlan: int, addr_groups: str):
+def get_portgroups_from_file(filename: str) -> Dict:
+    port_group_parser = CiscoConfParse(filename)
+    search_for = r"object-group ip port"
+
+    port_groups = {}
+    group_names = port_group_parser.find_objects(search_for)
+    for group in group_names:
+        match = re.match(r"object-group\sip\sport\s(.+)", group.text)
+        if match:
+            name = match.group(1).strip()
+            port_groups[name] = []
+            for port in group.children:
+                match = re.match(r"\seq\s(.+)", port.text)
+                if not match:
+                    match = re.match(
+                        r"\srange\s(\d+\s\d+).+",
+                        port.text,
+                    )
+                    if match:
+                        ports = str(match.group())  # include 'range'
+                        port_groups[name].append(ports)
+                else:
+                    ports = str(match.groups()[0])
+                    port_groups[name].append(ports)
+
+    return port_groups
+
+
+def get_initial_data(excel_filename: str, vlan: int, obj_groups: str):
     # Get ACL/Name/Subnet/Etc from Vlan Number
     ws = CustomWorksheet(excel_filename=excel_filename)
     my_row = ws.find_row_from_vlan(vlan)
@@ -69,8 +99,9 @@ def get_initial_data(excel_filename: str, vlan: int, addr_groups: str):
         )
         sys.exit()
 
-    addr_groups = get_addrgroups_from_file(addr_groups)
-    return ws, mig_data, addr_groups
+    addr_groups = get_addrgroups_from_file(obj_groups)
+    port_groups = get_portgroups_from_file(obj_groups)
+    return ws, mig_data, addr_groups, port_groups
 
 
 def remove_self(vlan_name: str, ew_mig_data: List[MigrationData]):
@@ -81,11 +112,72 @@ def remove_self(vlan_name: str, ew_mig_data: List[MigrationData]):
     return ew_mig_data2
 
 
-def print_cidr_acls(acl_in, acl_out):
-    new_acl_in = acl_in.output_cidr(name=f"New-NS-{acl_in.name}")
-    new_acl_out = acl_out.output_cidr(name=f"New-NS-{acl_out.name}")
-    print(new_acl_in)
-    print(new_acl_out)
+# def print_cidr_acls(acl_in, acl_out):
+#     new_acl_in = acl_in.output_cidr(name=f"New-NS-{acl_in.name}")
+#     new_acl_out = acl_out.output_cidr(name=f"New-NS-{acl_out.name}")
+#     print(new_acl_in)
+#     print(new_acl_out)
+#
+
+def addr_groups_to_nexus(names: List[str], addr_groups: Dict[str, Dict[str, List]]):
+    groups = {}
+    for name in names:
+        if name in addr_groups:
+            items = addr_groups[name]
+            groups[name] = f"object-group ip address {name}\n"
+            for item in items:
+                if item.endswith("/32"):
+                    groups[name] += f" host {item.replace('/32', '')}\n"
+                else:
+                    groups[name] += f" {item}\n"
+        else:
+            groups[name] = " Could not find!"
+            print(f"Could not find address group: {name} but ACL refers to it...skipping.")
+
+    return groups
+
+
+def port_groups_to_nexus(names: List[str], port_groups: Dict[str, Dict[str, List]]):
+    groups = {}
+    for name in names:
+        if name in port_groups:
+            items = port_groups[name]
+            groups[name] = f"object-group ip port {name}\n"
+            for item in items:
+                if item.startswith(" range"):
+                    _ = item.replace(" range", "")
+                    ports = _.strip()
+                    port_start, port_end = ports.split()
+                    groups[name] += f" range {port_start} {port_end}\n"
+                else:
+                    groups[name] += f" eq {item}\n"
+        else:
+            groups[name] = " Could not find!"
+            print(f"Could not find address group: {name} but ACL refers to it...skipping.")
+
+    return groups
+
+
+
+def output_to_file(acl: ACL, name: str, addr_groups, port_groups):
+        output = acl.output_cidr(name=name)
+        addr_group_names, port_group_names = acl.groups()
+
+        addr_groups = addr_groups_to_nexus(addr_group_names, addr_groups)
+        port_groups = port_groups_to_nexus(port_group_names, port_groups)
+
+        output += "\n\nAddress-Groups: \n"
+        for obj_group in addr_groups.values():
+            output += obj_group
+
+        output += "\n\nPort-Groups: \n"
+        for group in port_groups.values():
+            output += group
+
+        filename = name + ".ios"
+        with open(filename, "w") as fout:
+            fout.write(output)
+        print(f"File created at: {filename}")
 
 
 def ns_ew_combined(ws, mig_data, acl, addr_groups, direction: str = "in"):
@@ -148,11 +240,11 @@ def print_and_remark_acl(ew_aces, acl):
     print(new_acl)
 
 
-def run_main(excel_filename: str, vlan: int, acls: str, addr_groups: str, nsew: str):
+def run_main(excel_filename: str, vlan: int, acls: str, obj_groups: str, nsew: str):
 
     # Set initial data
-    ws, mig_data, addr_groups = get_initial_data(
-        excel_filename=excel_filename, vlan=vlan, addr_groups=addr_groups
+    ws, mig_data, addr_groups, port_groups = get_initial_data(
+        excel_filename=excel_filename, vlan=vlan, obj_groups=obj_groups
     )
 
     # Get Existing ACL in/out
@@ -166,7 +258,11 @@ def run_main(excel_filename: str, vlan: int, acls: str, addr_groups: str, nsew: 
     if nsew == "cidr":
         print("CIDR Output..")
         print("--------------")
-        print_cidr_acls(acl_in, acl_out)
+        for acl in (acl_in, acl_out):
+            output_to_file(acl=acl, name=f"New-NS-{acl.name}", addr_groups=addr_groups, port_groups=port_groups)
+        #
+        # acl_in.output_to_file(name=f"New-NS-{acl_in.name}")
+        # acl_out.output_to_file(name=f"New-NS-{acl_out.name}")
 
     if nsew == "ew":
         print("East/West...")
@@ -219,7 +315,6 @@ def create_contract_file(filename: str, contracts: List[Dict[str, str]]):
     headers = ws[start:end][0]
     for cell in headers:
         cell.fill = PatternFill("solid", fgColor="CCCCCC")
-    #ws[start:end].value.fill = PatternFill("solid", fgColor="CCCCCC")
     ws.freeze_panes = "A2"
     ws.auto_filter.ref = ws.dimensions
     view = [BookView(xWindow=0, yWindow=0, windowWidth=18140, windowHeight=15540)]
@@ -283,16 +378,3 @@ def ew_checker(
                     ew_supernets.append(temp)
 
     return ew_aces, ew_contracts, ew_supernets
-
-
-# def get_all_acls(ws: CustomWorksheet, acls:str) -> Dict:
-#     all_acls = {None: ACL(name='none')}
-#     all_acl_names_in = ws.get_rows_from_column(column="ACCESS-LIST-IN")
-#     for name in all_acl_names_in:
-#         acl = get_acl_from_file(filename=acls, name=name)
-#         # if "DID NOT FIND" in acl.name:
-#         #     acl = ACL(name="DID NOT FIND")
-#         if not all_acls.get(name):
-#             all_acls[name] = acl
-#
-#     return all_acls
