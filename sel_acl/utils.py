@@ -24,7 +24,7 @@ def get_acl_from_file(filename: str, name: str):
         my_acl = ACL(name=name, acl=acl_parser.find_objects(search_for)[0])
     except IndexError:
         print(f"Error loading acl: '{name}' from {filename}, not found?")
-        my_acl = ACL(name=f"DID NOT FIND {name}")
+        my_acl = None
 
     return my_acl
 
@@ -100,7 +100,13 @@ def get_initial_data(excel_filename: str, vlan: int, obj_groups: str):
 
     addr_groups = get_addrgroups_from_file(obj_groups)
     port_groups = get_portgroups_from_file(obj_groups)
-    return ws, mig_data, addr_groups, port_groups
+    # return ws, mig_data, addr_groups, port_groups
+    return {
+        "ws": ws,
+        "mig_data": mig_data,
+        "addr_groups": addr_groups,
+        "port_groups": port_groups,
+    }
 
 
 def remove_self(vlan_name: str, ew_mig_data: List[MigrationData]):
@@ -109,14 +115,6 @@ def remove_self(vlan_name: str, ew_mig_data: List[MigrationData]):
         if mig_data.vlan_name != vlan_name:
             ew_mig_data2.append(mig_data)
     return ew_mig_data2
-
-
-# def print_cidr_acls(acl_in, acl_out):
-#     new_acl_in = acl_in.output_cidr(name=f"New-NS-{acl_in.name}")
-#     new_acl_out = acl_out.output_cidr(name=f"New-NS-{acl_out.name}")
-#     print(new_acl_in)
-#     print(new_acl_out)
-#
 
 
 def addr_groups_to_nexus(names: List[str], addr_groups: Dict[str, Dict[str, List]]):
@@ -162,6 +160,49 @@ def port_groups_to_nexus(names: List[str], port_groups: Dict[str, Dict[str, List
     return groups
 
 
+def trim_acls(acls: List[ACL], mig_data, addr_groups, port_groups):
+    filename = input("Filename for existing ACL to compare with: ")
+    acl_name = input("ACL Name to compare to: ")
+
+    for acl in acls:
+        pprint(mig_data)
+
+        if acl.name.startswith("From"):
+            direction = "From"  # IN
+        elif acl.name.startswith("To"):
+            direction = "To"  # OUT
+        else:
+            print(f"Could not determine ACL direction (to/from), ACL: {acl.name}")
+            sys.exit()
+        acl_name = f"{direction}-{mig_data.tenant}-Tenant"
+        acl_2 = get_acl_from_file(filename, name=acl_name)
+        if acl_2:
+            new_acl = trim_acl(
+                acl_1=acl, acl_2=acl_2, addr_groups=addr_groups, port_groups=port_groups
+            )
+            print(new_acl.output_cidr(name="trimmed"))
+        else:
+            print(f"{acl_2} not found, nothing to compare to!")
+            sys.exit()
+
+
+def trim_acl(acl_1, acl_2, addr_groups, port_groups):
+    acl_1.set_cidrs_ports(addr_groups=addr_groups, port_groups=port_groups)
+    acl_2.set_cidrs_ports(addr_groups=addr_groups, port_groups=port_groups)
+
+    overlaps = acl_1.compare_with(acl_2)
+    new_name = f"trimmed--{acl_1.name}"
+    new_acl = ACL(name=new_name)
+    for ace in acl_1.aces:
+        remove = False
+        for overlap in overlaps:
+            if ace == overlap[0]:
+                remove = True
+        if not remove:
+            new_acl.aces.append(ace)
+    return new_acl
+
+
 def output_to_file(acl: ACL, name: str, addr_groups, port_groups):
     output = acl.output_cidr(name=name)
     addr_group_names, port_group_names = acl.obj_groups()
@@ -183,10 +224,19 @@ def output_to_file(acl: ACL, name: str, addr_groups, port_groups):
     print(f"File created at: {filename}")
 
 
-def ns_ew_combined(ws, mig_data, acl, addr_groups, direction: str = "in"):
+def ns_ew_combined(ws, mig_data, acl, addr_groups):
+
     ew_mig_data = ws.get_tenant_rows(tenant=mig_data.tenant)
     if ew_mig_data:
         ew_mig_data = remove_self(vlan_name=mig_data.vlan_name, ew_mig_data=ew_mig_data)
+
+        if acl.name.startswith("From"):
+            direction = "in"
+        elif acl.name.startswith("To"):
+            direction = "out"
+        else:
+            print("Could not determine ACL direction (to/from).")
+            sys.exit()
 
         ew_aces, ew_contracts, ew_supernets = ew_checker(
             ew_mig_data=ew_mig_data,
@@ -196,7 +246,7 @@ def ns_ew_combined(ws, mig_data, acl, addr_groups, direction: str = "in"):
             direction=direction,
         )
         if ew_supernets:
-            print(f"\n\nSupernet rules found in {acl.name}:")
+            print(f"\n\nSUPERnet rules found in {acl.name}:")
             print(f"{'Overlapping VLAN':<60}:\t{' ACE Entry'}")
             print(
                 "----------------------------------------------------------------------------------------"
@@ -245,72 +295,63 @@ def output_and_remark_acl(ew_aces, acl, name: str, addr_groups, port_groups):
     )
 
 
-def run_main(excel_filename: str, vlan: int, acls: str, obj_groups: str, nsew: str):
+def run_cidr(acls: List[ACL], addr_groups, port_groups):
+    print("CIDR Output..")
+    print("--------------")
+    for acl in acls:
+        output_to_file(
+            acl=acl,
+            name=f"New-NS-{acl.name}",
+            addr_groups=addr_groups,
+            port_groups=port_groups,
+        )
 
-    # Set initial data
-    ws, mig_data, addr_groups, port_groups = get_initial_data(
-        excel_filename=excel_filename, vlan=vlan, obj_groups=obj_groups
-    )
 
-    # Get Existing ACL in/out
-    acl_in = get_acl_from_file(filename=acls, name=mig_data.acl_name_in)
-    acl_out = get_acl_from_file(filename=acls, name=mig_data.acl_name_out)
+def run_ns(acls: List[ACL], addr_groups, port_groups, ws, mig_data):
+    print("North/South...")
+    print("--------------")
 
-    if not acl_in:
-        print(f"Error, no access-list found for vlan {vlan}: {mig_data.vlan_name}")
-        sys.exit()
+    for acl in acls:
+        ew_aces, _ = ns_ew_combined(
+            ws=ws, mig_data=mig_data, addr_groups=addr_groups, acl=acl
+        )
+        output_and_remark_acl(
+            acl=acl,
+            name=f"New-NS-{acl.name}",
+            addr_groups=addr_groups,
+            port_groups=port_groups,
+            ew_aces=ew_aces,
+        )
+    # yesno = input("Trim ACL? (y/n): ")
+    # if yesno in ("y", "yes"):
+    #     trim_acls(acls, mig_data, addr_groups, port_groups)
 
-    if nsew == "cidr":
-        print("CIDR Output..")
-        print("--------------")
-        for acl in (acl_in, acl_out):
-            output_to_file(
-                acl=acl,
-                name=f"New-NS-{acl.name}",
-                addr_groups=addr_groups,
-                port_groups=port_groups,
-            )
 
-    if nsew == "ew":
-        print("East/West...")
-        print("--------------")
-        print(f"\nChecking {acl_in.name}...")
+def run_ew(acls: List[ACL], addr_groups, port_groups, ws, mig_data):
+    print("East/West...")
+    print("--------------")
+
+    for acl in acls:
+        print(f"\nChecking {acl.name}...")
+        if acl.name.startswith("From"):
+            direction = "in"
+        elif acl.name.startswith("To"):
+            direction = "out"
+        else:
+            print("Could not determine ACL direction (to/from).")
+            sys.exit()
         ew_aces, ew_contracts = ns_ew_combined(
-            ws=ws, mig_data=mig_data, addr_groups=addr_groups, acl=acl_in
+            ws=ws,
+            mig_data=mig_data,
+            addr_groups=addr_groups,
+            acl=acl,
         )
         create_contracts(
             ew_aces=ew_aces,
             ew_contracts=ew_contracts,
-            acl=acl_in,
-            filename=f"contracts-{mig_data.vlan_name}-in.xlsx",
+            acl=acl,
+            filename=f"contracts-{mig_data.vlan_name}-{direction}.xlsx",
         )
-
-        print(f"\nChecking {acl_out.name}...")
-        ew_aces, ew_contracts = ns_ew_combined(
-            ws=ws, mig_data=mig_data, addr_groups=addr_groups, acl=acl_out
-        )
-        create_contracts(
-            ew_aces=ew_aces,
-            ew_contracts=ew_contracts,
-            acl=acl_out,
-            filename=f"contracts-{mig_data.vlan_name}-out.xlsx",
-        )
-
-    if nsew == "ns":
-        print("North/South...")
-        print("--------------")
-
-        for acl in (acl_in, acl_out):
-            ew_aces, _ = ns_ew_combined(
-                ws=ws, mig_data=mig_data, addr_groups=addr_groups, acl=acl
-            )
-            output_and_remark_acl(
-                acl=acl,
-                name=f"New-NS-{acl.name}",
-                addr_groups=addr_groups,
-                port_groups=port_groups,
-                ew_aces=ew_aces,
-            )
 
 
 def create_contract_file(filename: str, contracts: List[Dict[str, str]]):

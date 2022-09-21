@@ -5,6 +5,47 @@ correct_groups = (
     ["dst_port2", "src_port1", "dst_port1"],
 )
 
+correct_overlaps = [
+    (" ### MY REMARK", " ### MY REMARK"),
+    (" permit ip 10.1.1.0/24 99.99.99.0/24 ", " permit ip 10.1.1.0/24 99.99.99.0/24 "),
+    (
+        " permit ip 10.1.1.0/24 99.99.99.0/24 ",
+        " permit ip addrgroup src_grp2 99.99.99.0/24 ",
+    ),
+    (
+        " permit ip 10.1.1.0/24 99.99.99.0/24 ",
+        " permit ip 10.1.1.0/24 addrgroup dst_grp4 ",
+    ),
+    (
+        " permit ip 10.1.1.0/24 99.99.99.0/24 eq 80 ",
+        " permit ip 10.1.1.0/24 99.99.99.0/24 range 79 81 ",
+    ),
+    (
+        " permit ip addrgroup src_grp1 99.99.99.0/24 ",
+        " permit ip 10.1.1.0/24 99.99.99.0/24 ",
+    ),
+    (
+        " permit ip addrgroup src_grp1 99.99.99.0/24 ",
+        " permit ip addrgroup src_grp2 99.99.99.0/24 ",
+    ),
+    (
+        " permit ip addrgroup src_grp1 99.99.99.0/24 ",
+        " permit ip 10.1.1.0/24 addrgroup dst_grp4 ",
+    ),
+    (
+        " permit tcp addrgroup src_grp2 99.99.99.0/24 eq 52 ",
+        " permit tcp addrgroup src_grp2 99.99.99.0/24 eq 52 ",
+    ),
+    (
+        " permit tcp addrgroup src_grp1 portgroup src_port1 10.1.6.0/24 ",
+        " permit tcp 10.1.1.0/25 range 400 1534 10.1.6.0/24 ",
+    ),
+    (
+        " permit tcp 10.1.1.0/24 10.1.6.0/24 portgroup dst_port1 ",
+        " permit tcp 10.1.1.0/24 10.1.6.0/24 range 400 1434 ",
+    ),
+]
+
 vlan1_contracts = [
     {
         "acl_name": "From-Vlan1",
@@ -1045,6 +1086,35 @@ test_acl = ACL(
             dst_port_start=None,
             dst_port_end=None,
             dst_port="888",
+            flags_match=None,
+            tcp_flag=None,
+            icmp_type=None,
+            log=None,
+            src_cidr="10.1.1.0/24",
+            dst_cidr="10.1.6.0/24",
+        ),
+        ACE(
+            remark=None,
+            action="permit",
+            protocol="tcp",
+            src_group=None,
+            src_wld="10.1.1.0 0.0.0.255",
+            src_host=None,
+            src_any=None,
+            src_portgroup=None,
+            src_port_match=None,
+            src_port_start=None,
+            src_port_end=None,
+            src_port=None,
+            dst_group=None,
+            dst_wld="10.1.6.0 0.0.0.255",
+            dst_host=None,
+            dst_any=None,
+            dst_portgroup=None,
+            dst_port_match="range",
+            dst_port_start="500",
+            dst_port_end="600",
+            dst_port=None,
             flags_match=None,
             tcp_flag=None,
             icmp_type=None,

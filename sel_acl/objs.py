@@ -5,6 +5,7 @@ import sys
 from dataclasses import dataclass, field
 from ipaddress import ip_network
 from itertools import product
+from typing import List
 
 import ciscoconfparse
 import openpyxl
@@ -257,6 +258,10 @@ class ACE:
     # Custom/Created Variables
     src_cidr: str = None  # field(default_factory=str)
     dst_cidr: str = None  # field(default_factory=str)
+    src_cidrs: List = field(default_factory=list)
+    src_ports: List = field(default_factory=list)
+    dst_cidrs: List = field(default_factory=list)
+    dst_ports: List = field(default_factory=list)
 
     def __post_init__(self):
         # Initialize ACE in a more reusable way
@@ -266,16 +271,14 @@ class ACE:
             self.src_group = self.src_group.replace("addrgroup ", "")
         if self.src_host:
             self.src_host = self.src_host.replace("host ", "")
-            if self.src_host not in ("0.0.0.0", "255.255.255.255"):
-                self.src_host += "/32"
+            self.src_host += "/32"
         if self.src_portgroup:
             self.src_portgroup = self.src_portgroup.replace("portgroup ", "")
         if self.dst_group:
             self.dst_group = self.dst_group.replace("addrgroup ", "")
         if self.dst_host:
             self.dst_host = self.dst_host.replace("host ", "")
-            if self.dst_host not in ("0.0.0.0", "255.255.255.255"):
-                self.dst_host += "/32"
+            self.dst_host += "/32"
         if self.dst_portgroup:
             self.dst_portgroup = self.dst_portgroup.replace("portgroup ", "")
 
@@ -336,7 +339,7 @@ class ACE:
         elif self.src_port_match:
             output += f"{self.src_port_match} "
         if self.src_port_start and self.src_port_end:
-            output += f"{self.src_port_start} + {self.src_port_end} "
+            output += f"{self.src_port_start} {self.src_port_end} "
         elif self.src_port:
             output += f"{self.src_port} "
 
@@ -358,7 +361,7 @@ class ACE:
         elif self.dst_port_match:
             output += f"{self.dst_port_match} "
         if self.dst_port_start and self.dst_port_end:
-            output += f"{self.dst_port_start} + {self.dst_port_end} "
+            output += f"{self.dst_port_start} {self.dst_port_end} "
         elif self.dst_port:
             output += f"{self.dst_port} "
 
@@ -373,6 +376,131 @@ class ACE:
             output += f"{self.log} "
 
         return output
+
+    def load_addr_cidrs(self, addr_groups, group):
+        cidrs = []
+        my_cidrs = addr_groups.get(group)
+        if my_cidrs:
+            for network in my_cidrs:
+                try:
+                    _ = ip_network(network)  # Make sure it's a cidr
+                    cidrs.append(network)
+                except ValueError as e:
+                    print(f"ERR: {e}")
+                    print("ACE is incorrect")
+                    print(self.output_cidr())
+                    sys.exit()
+
+        else:
+            print(f"Error getting address group: {group}, ignoring...")
+
+        return cidrs
+
+    def load_ports(self, port_groups, group):
+        ports = []
+        my_ports = port_groups.get(group)
+        if my_ports:
+            for port in my_ports:
+                ports.append(port)
+        else:
+            print(f"Error getting port group: {group}, ignoring...")
+
+        return ports
+
+    def set_cidrs_ports(self, addr_groups, port_groups):
+        self.src_cidrs = []
+        self.src_ports = []
+        self.dst_cidrs = []
+        self.dst_ports = []
+
+        if self.remark:
+            return
+
+        # SOURCE ADDRESS
+        if self.src_host:
+            self.src_cidrs.append(self.src_host)
+        elif self.src_any:
+            self.src_cidrs.append("0.0.0.0/0")
+        elif self.src_cidr:
+            self.src_cidrs.append(self.src_cidr)
+        elif self.src_group:
+            self.src_cidrs += self.load_addr_cidrs(
+                addr_groups=addr_groups, group=self.src_group
+            )
+        # SOURCE PORT
+        if self.src_portgroup:
+            self.src_ports += self.load_ports(
+                port_groups=port_groups, group=self.src_portgroup
+            )
+        elif self.src_port_match:
+            if self.src_port_match == "eq":
+                self.src_ports.append(self.src_port)
+            elif self.src_port_match == "range":
+                try:
+                    for port in range(
+                        int(self.src_port_start), int(self.src_port_end) + 1
+                    ):
+                        self.src_ports.append(str(port))
+                except ValueError as e:
+                    self.src_ports.append(self.src_port_start)
+                    self.src_ports.append(self.src_port_end)
+            elif self.src_port_match == "gt":
+                for port in range(int(self.src_port), 65535):
+                    self.src_ports.append(port)
+            elif self.src_port_match == "lt":
+                for port in range(0, int(self.src_port) + 1):
+                    self.src_ports.append(port)
+            elif self.src_port_match == "neq":
+                print("Don't use `neq`, slowing us down:")
+                for port in range(0, 65535):
+                    if int(self.src_port) != port:
+                        self.src_ports.append(str(port))
+            else:
+                match = self.src_port_match
+                self.src_ports.append(f"{match} {self.src_port}")
+
+        # DESTINATION
+        if self.dst_host:
+            self.dst_cidrs.append(self.dst_host)
+        elif self.dst_any:
+            self.dst_cidrs.append("0.0.0.0/0")
+        elif self.dst_cidr:
+            self.dst_cidrs.append(self.dst_cidr)
+        elif self.dst_group:
+            self.dst_cidrs += self.load_addr_cidrs(
+                addr_groups=addr_groups, group=self.dst_group
+            )
+        # DESTINATION PORT
+        if self.dst_portgroup:
+            self.dst_ports += self.load_ports(
+                port_groups=port_groups, group=self.dst_portgroup
+            )
+        elif self.dst_port_match:
+            if self.dst_port_match == "eq":
+                self.dst_ports.append(self.dst_port)
+            elif self.dst_port_match == "range":
+                try:
+                    for port in range(
+                        int(self.dst_port_start), int(self.dst_port_end) + 1
+                    ):
+                        self.dst_ports.append(str(port))
+                except ValueError as e:
+                    self.dst_ports.append(self.dst_port_start)
+                    self.dst_ports.append(self.dst_port_end)
+            elif self.dst_port_match == "gt":
+                for port in range(int(self.dst_port), 65535):
+                    self.dst_ports.append(port)
+            elif self.dst_port_match == "lt":
+                for port in range(0, int(self.dst_port) + 1):
+                    self.dst_ports.append(str(port))
+            elif self.dst_port_match == "neq":
+                print("Don't use `neq`, slowing us down:")
+                for port in range(0, 65535):
+                    if self.dst_port != str(port):
+                        self.dst_ports.append(str(port))
+            else:
+                match = self.dst_port_match
+                self.dst_ports.append(f"{match} {self.dst_port}")
 
     def addr_groups(self):
         names = []
@@ -429,38 +557,93 @@ class ACE:
 
     def source_in(self, subnet, addr_groups):
         if self.src_group:
-            my_destinations = addr_groups.get(self.src_group)
-            if my_destinations:
-                for network in my_destinations:
+            my_sources = addr_groups.get(self.src_group)
+            if my_sources:
+                for network in my_sources:
                     try:
-                        my_destination = ip_network(network, strict=False)
+                        my_source = ip_network(network, strict=False)
                     except ValueError as e:
                         return f"ERR: {e}"
-                    if my_destination.subnet_of(subnet):
+                    if my_source.subnet_of(subnet):
                         return "subnet"
-                    if my_destination.supernet_of(subnet):
+                    if my_source.supernet_of(subnet):
                         return "supernet"
             else:
                 print(f"Error getting address group: {self.src_group}, skipping...")
                 return False
         else:
             if self.src_host:
-                my_destination = self.src_host
+                my_source = self.src_host
             if self.src_any:
-                my_destination = "0.0.0.0/0"
+                my_source = "0.0.0.0/0"
             if self.src_cidr:
-                my_destination = self.src_cidr
+                my_source = self.src_cidr
             try:
-                my_destination = ip_network(my_destination, strict=False)
-                if my_destination.subnet_of(subnet):
+                my_source = ip_network(my_source, strict=False)
+                if my_source.subnet_of(subnet):
                     return "subnet"
-                if my_destination.supernet_of(subnet):
+                if my_source.supernet_of(subnet):
                     return "supernet"
             except ValueError as e:
                 return f"ERR: {e}"
             except UnboundLocalError as e:
                 # my_destination was never found/assigned
                 print(f"ACE is incorrect, cannot process: {self.__dict__}")
+
+    def compare_cidrs(self, ace_2, attr):
+        iters = []
+        for cidr in getattr(self, attr):
+            match = False
+            for cidr_2 in getattr(ace_2, attr):
+                net_1 = ip_network(cidr)
+                net_2 = ip_network(cidr_2)
+                if net_1.subnet_of(net_2):
+                    match = True
+            iters.append(match)
+
+        if iters:
+            if all(iters):
+                return iters
+
+    def compare_ports(self, ace_2, attr):
+        iters = []
+        ports_1 = getattr(self, attr)
+        ports_2 = getattr(ace_2, attr)
+
+        # 'same' if no ports
+        if not ports_1:
+            if not ports_2:
+                return [True]
+
+        # Loop through our ports
+        for port_1 in ports_1:
+            match = False
+            if port_1 in ports_2:
+                match = True
+            iters.append(match)
+        if iters:
+            if all(iters):
+                return iters
+
+    def compare_with(self, ace_2):
+        overlaps = []
+        if self.remark or ace_2.remark:
+            if self.remark == ace_2.remark:
+                return True
+
+        elif self.action == ace_2.action:
+            if self.protocol == ace_2.protocol:
+                matches = self.compare_cidrs(ace_2, "src_cidrs")
+                if matches:
+                    matches = self.compare_cidrs(ace_2, "dst_cidrs")
+                    if matches:
+                        matches = self.compare_ports(ace_2, "src_ports")
+                        if matches:
+                            matches = self.compare_ports(ace_2, "dst_ports")
+                            if matches:
+                                return True
+
+        return overlaps
 
     def to_contract(self, acl, tenant, src_epg, dst_epg):
         source, destination, source_port, destination_port = "", "", "", ""
@@ -533,7 +716,7 @@ class ACL:
     acl: ciscoconfparse.models_cisco.IOSCfgLine = None
     aces: list[ACE] = field(default_factory=list)
     rec = re.compile(ACL_RE_PATTERN, re.X)
-    groups = None
+    # groups = None
 
     def __post_init__(self):
         if self.acl:
@@ -546,7 +729,12 @@ class ACL:
                     ace = ACE(**results.groupdict())
 
                     # Some rules might be 'eq port1 port2 port3' which should be split into extra rules
-                    if ace.src_port_match == "eq" or ace.dst_port_match == "eq":
+                    if (
+                        ace.src_port_match == "eq"
+                        or ace.dst_port_match == "eq"
+                        or ace.src_port_match == "neq"
+                        or ace.dst_port_match == "neq"
+                    ):
                         if ace.src_port:
                             src_ports = ace.src_port.split()
                         else:
@@ -606,9 +794,23 @@ class ACL:
                     portgroup_names.append(name)
         return portgroup_names
 
+    def set_cidrs_ports(self, addr_groups, port_groups):
+        for ace in self.aces:
+            ace.set_cidrs_ports(addr_groups=addr_groups, port_groups=port_groups)
+
     def output_groups(self):
         addr_group_names = self.addr_groups()
         return addr_group_names
+
+    def compare_with(self, acl_2):
+        overlaps = []
+        for ace in self.aces:
+            for ace_2 in acl_2.aces:
+                if ace.compare_with(ace_2):
+                    overlaps.append((ace, ace_2))
+                else:
+                    pass  # Do nothing so far
+        return overlaps
 
     def output_cidr(self, name: str):
         output = f"ip access-list {name}\n"
