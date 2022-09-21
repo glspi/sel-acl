@@ -626,7 +626,6 @@ class ACE:
                 return iters
 
     def compare_with(self, ace_2):
-        overlaps = []
         if self.remark or ace_2.remark:
             if self.remark == ace_2.remark:
                 return True
@@ -642,8 +641,6 @@ class ACE:
                             matches = self.compare_ports(ace_2, "dst_ports")
                             if matches:
                                 return True
-
-        return overlaps
 
     def to_contract(self, acl, tenant, src_epg, dst_epg):
         source, destination, source_port, destination_port = "", "", "", ""

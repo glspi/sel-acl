@@ -15,8 +15,7 @@ def test_regex():
     test_acl = get_acl_from_file(filename, "From-Vlan1")
     test_acl.acl = None
     correct_acl = correct_asserts.test_acl
-    print(test_acl.output_cidr("a"))
-    # assert test_acl == correct_acl
+    assert test_acl == correct_acl
 
 
 def test_groups():

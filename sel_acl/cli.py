@@ -125,7 +125,7 @@ def main(
         None,
         "--compare",
         "-c",
-        metavar="Compare 2 (ios-xe only) ACL's manually.",
+        metavar="Compare 2 (ios-xe only) ACL's manually. (ignores any other args)",
         is_eager=True,
         callback=acl_compare,
     ),
