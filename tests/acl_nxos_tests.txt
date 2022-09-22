@@ -1,0 +1,11 @@
+IP access list From-Vlan1
+        10 remark ### Allow EIGRP
+        20 permit eigrp 10.26.0.0/16 10.26.0.0/16
+        30 permit eigrp 10.26.0.0/16 224.0.0.10/32
+        40 permit eigrp 224.0.0.10/32 10.26.0.0/16
+        50 remark ### Allow DHCP
+        60 permit udp 10.0.0.0/8 eq bootpc addrgroup DHCP-Svrs eq bootps
+        70 permit udp 10.0.0.0/8 eq bootps addrgroup DHCP-Svrs eq bootps
+        80 permit udp addrgroup DHCP-Svrs eq bootps 10.0.0.0/8 eq bootpc
+        90 permit udp addrgroup DHCP-Svrs eq bootps 10.0.0.0/8 eq bootps
+        100 remark ### Allow DNS

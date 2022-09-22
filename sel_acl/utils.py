@@ -8,9 +8,8 @@ from ciscoconfparse import CiscoConfParse
 from openpyxl.styles import PatternFill
 from openpyxl.workbook.views import BookView
 from openpyxl.workbook.workbook import Workbook
-from rich.pretty import pprint
 
-from sel_acl.objs import ACE, ACL, CustomWorksheet, MigrationData
+from sel_acl.objs import ACE, ACL, CustomWorksheet, MigrationData, NexusACL
 
 
 def get_acl_from_file(filename: str, name: str):
@@ -22,6 +21,22 @@ def get_acl_from_file(filename: str, name: str):
 
     try:
         my_acl = ACL(name=name, acl=acl_parser.find_objects(search_for)[0])
+    except IndexError:
+        print(f"Error loading acl: '{name}' from {filename}, not found?")
+        my_acl = None
+
+    return my_acl
+
+
+def get_nexus_acl_from_file(filename: str, name: str):
+    if name == "" or name is None:
+        return None
+
+    acl_parser = CiscoConfParse(filename, syntax="nxos")
+    search_for = rf"IP access list {name}"
+
+    try:
+        my_acl = NexusACL(name=name, acl=acl_parser.find_objects(search_for)[0])
     except IndexError:
         print(f"Error loading acl: '{name}' from {filename}, not found?")
         my_acl = None
@@ -56,6 +71,65 @@ def get_addrgroups_from_file(filename: str) -> Dict:
                     addr_groups[name].append(ip)
 
     return addr_groups
+
+
+def get_nexus_addrgroups_from_file(filename: str) -> Dict:
+    addr_group_parser = CiscoConfParse(filename)
+    search_for = r"object-group ip address"
+
+    addr_groups = {}
+    group_names = addr_group_parser.find_objects(search_for)
+    for group in group_names:
+        match = re.match(r"object-group\sip\saddress\s(.+)", group.text)
+        if match:
+            name = match.group(1).strip()
+            addr_groups[name] = []
+            for host in group.children:
+                match = re.match(r"\s+\d+\shost\s(.+)", host.text)
+                # breakpoint()
+                if not match:
+                    match = re.match(
+                        r"\s+\d+\s(\d+\.\d+\.\d+\.\d+\/\d+)(?:\s+)?",
+                        host.text,
+                    )
+                    # breakpoint()
+                    if match:
+                        network = match.group(1).strip()
+                        addr_groups[name].append(network)
+                else:
+                    ip = match.group(1).strip() + "/32"
+                    addr_groups[name].append(ip)
+
+    return addr_groups
+
+
+def get_nexus_portgroups_from_file(filename: str) -> Dict:
+    port_group_parser = CiscoConfParse(filename)
+    search_for = r"object-group ip port"
+
+    port_groups = {}
+    group_names = port_group_parser.find_objects(search_for)
+    for group in group_names:
+        match = re.match(r"object-group\sip\sport\s(.+)", group.text)
+        if match:
+            name = match.group(1).strip()
+            port_groups[name] = []
+            for port in group.children:
+                match = re.match(r"\s+\d+\seq\s(.+)", port.text)
+                if not match:
+                    match = re.match(
+                        r"\s+\d+\srange\s(\d+\s\d+).+",
+                        port.text,
+                    )
+                    if match:
+                        # breakpoint()
+                        ports = f" range {str(match.groups()[0])}"  # include 'range'
+                        port_groups[name].append(ports)
+                else:
+                    ports = str(match.groups()[0])
+                    port_groups[name].append(ports)
+
+    return port_groups
 
 
 def get_portgroups_from_file(filename: str) -> Dict:
@@ -129,7 +203,7 @@ def addr_groups_to_nexus(names: List[str], addr_groups: Dict[str, Dict[str, List
                 else:
                     groups[name] += f" {item}\n"
         else:
-            groups[name] = " Could not find!"
+            groups[name] = f"Could not find {name}!"
             print(
                 f"Could not find address group: {name} but ACL refers to it...skipping."
             )
@@ -161,12 +235,9 @@ def port_groups_to_nexus(names: List[str], port_groups: Dict[str, Dict[str, List
 
 
 def trim_acls(acls: List[ACL], mig_data, addr_groups, port_groups):
-    filename = input("Filename for existing ACL to compare with: ")
-    acl_name = input("ACL Name to compare to: ")
+    acl_filename = input("Filename for existing NEXUS ACL's to compare with: ")
 
     for acl in acls:
-        pprint(mig_data)
-
         if acl.name.startswith("From"):
             direction = "From"  # IN
         elif acl.name.startswith("To"):
@@ -174,23 +245,46 @@ def trim_acls(acls: List[ACL], mig_data, addr_groups, port_groups):
         else:
             print(f"Could not determine ACL direction (to/from), ACL: {acl.name}")
             sys.exit()
-        acl_name = f"{direction}-{mig_data.tenant}-Tenant"
-        acl_2 = get_acl_from_file(filename, name=acl_name)
-        if acl_2:
-            new_acl = trim_acl(
-                acl_1=acl, acl_2=acl_2, addr_groups=addr_groups, port_groups=port_groups
+        existing_acl_name = f"{direction}-{mig_data.tenant}-Tenant"
+        acl_nxos = get_nexus_acl_from_file(
+            filename=acl_filename, name=existing_acl_name
+        )
+
+        if acl_nxos:
+            new_acl, removed_aces = trim_acl(
+                acl_1=acl,
+                acl_nxos=acl_nxos,
+                addr_groups=addr_groups,
+                port_groups=port_groups,
             )
-            print(new_acl.output_cidr(name="trimmed"))
+            output_to_file(
+                acl=new_acl,
+                name=new_acl.name,
+                addr_groups=addr_groups,
+                port_groups=port_groups,
+                removed=removed_aces,
+            )
         else:
-            print(f"{acl_2} not found, nothing to compare to!")
+            print(f"{existing_acl_name} not found, nothing to compare to!")
             sys.exit()
 
 
-def trim_acl(acl_1, acl_2, addr_groups, port_groups):
-    acl_1.set_cidrs_ports(addr_groups=addr_groups, port_groups=port_groups)
-    acl_2.set_cidrs_ports(addr_groups=addr_groups, port_groups=port_groups)
+def trim_acl(
+    acl_1,
+    acl_nxos,
+    addr_groups,
+    port_groups,
+):
 
-    overlaps = acl_1.compare_with(acl_2)
+    obj_filename = "North-South-Object-Groups.ios"
+    addr_groups_nxos = get_nexus_addrgroups_from_file(filename=obj_filename)
+    port_groups_nxos = get_nexus_portgroups_from_file(filename=obj_filename)
+
+    acl_1.set_cidrs_ports(addr_groups=addr_groups, port_groups=port_groups)
+    acl_nxos.set_cidrs_ports(addr_groups=addr_groups_nxos, port_groups=port_groups_nxos)
+
+    removed = []
+    overlaps = acl_1.compare_with(acl_nxos)
     new_name = f"trimmed--{acl_1.name}"
     new_acl = ACL(name=new_name)
     for ace in acl_1.aces:
@@ -198,17 +292,25 @@ def trim_acl(acl_1, acl_2, addr_groups, port_groups):
         for overlap in overlaps:
             if ace == overlap[0]:
                 remove = True
+                removed.append((ace.output_cidr(), overlap[1].output_cidr()))
         if not remove:
             new_acl.aces.append(ace)
-    return new_acl
+    return new_acl, removed
 
 
-def output_to_file(acl: ACL, name: str, addr_groups, port_groups):
+def output_to_file(
+    acl: ACL, name: str, addr_groups, port_groups, removed: List[str] = None
+):
     output = acl.output_cidr(name=name)
     addr_group_names, port_group_names = acl.obj_groups()
 
     addr_groups = addr_groups_to_nexus(addr_group_names, addr_groups)
     port_groups = port_groups_to_nexus(port_group_names, port_groups)
+
+    if removed:
+        output += "\n\nRemoved ACE's: \n"
+        for ace in removed:
+            output += f"{ace[0]:<60} matched: {ace[1]}\n"
 
     output += "\n\nAddress-Groups: \n"
     for obj_group in addr_groups.values():
@@ -221,7 +323,7 @@ def output_to_file(acl: ACL, name: str, addr_groups, port_groups):
     filename = name + ".ios"
     with open(filename, "w") as fout:
         fout.write(output)
-    print(f"File created at: {filename}")
+    print(f"File created at: {filename}\n")
 
 
 def ns_ew_combined(ws, mig_data, acl, addr_groups):
@@ -247,7 +349,7 @@ def ns_ew_combined(ws, mig_data, acl, addr_groups):
         )
         if ew_supernets:
             print(f"\n\nSUPERnet rules found in {acl.name}:")
-            print(f"{'Overlapping VLAN':<60}:\t{' ACE Entry'}")
+            print(f"{'Overlapping VLAN':<60}:\t{' ACL: ACE Entry'}")
             print(
                 "----------------------------------------------------------------------------------------"
             )
@@ -312,6 +414,7 @@ def run_ns(acls: List[ACL], addr_groups, port_groups, ws, mig_data):
     print("--------------")
 
     for acl in acls:
+        print(f"\nChecking {acl.name} and Tenant {mig_data.tenant} networks..\n")
         ew_aces, _ = ns_ew_combined(
             ws=ws, mig_data=mig_data, addr_groups=addr_groups, acl=acl
         )
@@ -322,12 +425,14 @@ def run_ns(acls: List[ACL], addr_groups, port_groups, ws, mig_data):
             port_groups=port_groups,
             ew_aces=ew_aces,
         )
-    # yesno = input("Trim ACL? (y/n): ")
-    # if yesno in ("y", "yes"):
-    #     trim_acls(acls, mig_data, addr_groups, port_groups)
+    yesno = ""
+    while yesno not in ("y", "n", "yes", "no"):
+        yesno = input("Trim ACL? (y/n): ").lower()
+    if yesno in ("y", "yes"):
+        trim_acls(acls, mig_data, addr_groups, port_groups)
 
 
-def run_ew(acls: List[ACL], addr_groups, port_groups, ws, mig_data):
+def run_contracts(acls: List[ACL], addr_groups, port_groups, ws, mig_data):
     print("East/West...")
     print("--------------")
 
@@ -427,7 +532,7 @@ def ew_checker(
                     temp = {
                         "vlan_name": mig_data.vlan_name,
                         "subnet": subnet_str,
-                        "match": f"{acl.name}{ace.output_cidr()}",
+                        "match": f"{acl.name}: {ace.output_cidr()}",
                     }
                     ew_supernets.append(temp)
 

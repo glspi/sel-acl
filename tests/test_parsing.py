@@ -1,10 +1,12 @@
 import correct_asserts
-from rich.pretty import pprint
 
 from sel_acl.utils import (
     get_acl_from_file,
     get_addrgroups_from_file,
     get_initial_data,
+    get_nexus_acl_from_file,
+    get_nexus_addrgroups_from_file,
+    get_nexus_portgroups_from_file,
     get_portgroups_from_file,
     ns_ew_combined,
 )
@@ -18,23 +20,38 @@ def test_regex():
     assert test_acl == correct_acl
 
 
+def test_regex_nexus():
+    filename = "./tests/acl_nxos_tests.txt"
+    test_nexus_acl = get_nexus_acl_from_file(filename, "From-Vlan1")
+    correct_nexus_acl_output = correct_asserts.test_nexus_acl_output
+    output = test_nexus_acl.output_cidr(f"Nexus-{test_nexus_acl.name}")
+    assert output == correct_nexus_acl_output
+
+
 def test_groups():
     filename = "./tests/acl_tests.txt"
     test_acl = get_acl_from_file(filename, "From-Vlan1")
-    test_acl.acl = None
+    # test_acl.acl = None
     assert test_acl.obj_groups() == correct_asserts.correct_groups
 
 
 def test_compare_with():
     acl_1 = get_acl_from_file("./tests/acl_tests.txt", "Overlaps-Acl1")
     acl_2 = get_acl_from_file("./tests/acl_tests.txt", "Overlaps-Acl2")
+    # acl_3 = get_nexus_acl_from_file("./tests/acl_tests.txt", "Overlaps-Acl3")
     addr_groups = get_addrgroups_from_file("./tests/objects_test.ios")
     port_groups = get_portgroups_from_file("./tests/objects_test.ios")
 
     acl_1.set_cidrs_ports(addr_groups=addr_groups, port_groups=port_groups)
     acl_2.set_cidrs_ports(addr_groups=addr_groups, port_groups=port_groups)
+    # acl_3.set_cidrs_ports(addr_groups=addr_groups, port_groups=port_groups)
 
     overlaps = acl_1.compare_with(acl_2)
+    # overlaps = acl_1.compare_with(acl_3)
+    # for o in overlaps:
+    #     print()
+    #     print(o[0].output_cidr())
+    #     print(o[1].output_cidr())
 
     test_overlaps = []
     for overlap in overlaps:
@@ -97,5 +114,6 @@ if __name__ == "__main__":
     # test_regex()
     # test_groups()
     # test_eastwest()
-    # test_compare()
-    test_cidrs_ports()
+    # test_compare_with()
+    # test_cidrs_ports()
+    test_regex_nexus()

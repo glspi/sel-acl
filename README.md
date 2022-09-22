@@ -3,12 +3,8 @@
 
 TODO:
 crit:
-
-acl compare/trim same acl
-seq #?!
-nxos regex/post-init
 always more tests!
-refactor east/west?!
+refactor it all
 ACI
 
 eh:

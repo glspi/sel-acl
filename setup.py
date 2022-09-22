@@ -1,7 +1,7 @@
 """pan_deduper"""
 import setuptools
 
-__version__ = "0.0.71"
+__version__ = "0.0.72"
 __author__ = "Ryan Gillespie"
 
 setuptools.setup(
@@ -26,5 +26,5 @@ setuptools.setup(
         "Programming Language :: Python :: 3 :: Only",
     ],
     python_requires=">=3.7",
-    entry_points={"console_scripts": ["sel_acl = sel_acl.cli:app"]},
+    entry_points={"console_scripts": ["sel-acl = sel_acl.cli:app"]},
 )

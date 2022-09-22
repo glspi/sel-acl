@@ -1,10 +1,8 @@
 """sel_acl.cli"""
-import sys
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
 import typer
-from rich.pretty import pprint
 
 from sel_acl import objs, utils
 from sel_acl.objs import ACL
@@ -42,13 +40,13 @@ def north_south() -> None:
     )
 
 
-@app.command("ew", help="Create contracts.xlsx file for review.")
-def east_west():
+@app.command("contracts", help="Create contracts.xlsx file for review.")
+def east_west_contracts():
     """
     east/west!
     :return:
     """
-    utils.run_ew(
+    utils.run_contracts(
         acls=MyParams.acls,
         addr_groups=MyParams.addr_groups,
         port_groups=MyParams.port_groups,

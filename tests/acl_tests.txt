@@ -49,6 +49,20 @@ ip access-list extended Overlaps-Acl2
  permit tcp 10.1.1.0 0.0.0.127 range 400 1534 10.1.6.0 0.0.0.255
  permit tcp 10.1.1.0 0.0.0.255 10.1.6.0 0.0.0.255 range 400 1434
 
+
+IP access list Overlaps-Acl3
+ remark ### MY REMARK
+ permit ip 10.1.1.0/24 99.99.99.0/24
+ permit ip 10.1.1.0/24 99.99.99.128/25
+ permit ip 10.1.1.0/24 99.99.99.0/24 range 79 81
+ permit ip 10.1.1.0/24 eq 80 99.99.99.0/24
+ permit ip addrgroup src_grp2 99.99.99.0/24
+ permit ip addrgroup src_grp3 99.99.99.0/24
+ permit ip 10.1.1.0/24 addrgroup dst_grp4
+ permit tcp addrgroup src_grp2 99.99.99.0/24 eq 52
+ permit tcp 10.1.1.0/25 range 400 1534 10.1.6.0/24
+ permit tcp 10.1.1.0/24 10.1.6.0/24 range 400 1434
+
 ip access-list extended From-Vlan2
  remark ### MY REMARK
  permit ip 10.1.1.0 0.0.0.255 99.99.99.0 0.0.0.255

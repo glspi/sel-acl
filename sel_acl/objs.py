@@ -14,8 +14,9 @@ from openpyxl.workbook.workbook import Workbook
 
 ACL_RE_PATTERN = r"""
                 ^\s+
+                (?P<sequence>\d+\s)?                                                    # Sequence Number
                 (
-                (?P<remark>remark\s+.*)                                             # Remark
+                (?P<remark>remark\s+.*)                                                 # Remark
                 |
                 (
                 (?P<action>permit|deny)\s+                                              # Action
@@ -42,6 +43,61 @@ ACL_RE_PATTERN = r"""
                 (
                 (?P<dst_group>addrgroup\s\S+)                                           # Destination addrgroup
                 |(?P<dst_wld>\d+\.\d+\.\d+\.\d+\s+\d+\.\d+\.\d+\.\d+)                   # OR Destination Network
+                |(?P<dst_host>host\s+\d+\.\d+\.\d+\.\d+)                                # OR 'host x.x.x.x'
+                |(?P<dst_any>any)                                                       # OR 'any'
+                )
+                (?:\s+)?
+                (
+                    (?P<dst_portgroup>portgroup\s\S+)                                   # OR Destination portgroup
+                    |
+                    (
+                        (?P<dst_port_match>(eq|neq|precedence|range|tos|lt|gt))\s+      # Destination port Match ('eq' normally)
+                        (
+                        (?P<dst_port_start>(?<=range\s)\S+)\s+(?P<dst_port_end>\S+)     # Destination port range    
+                        |(?P<dst_port>(?<!range\s).+)                                   # OR Destination port (only)
+                        )
+                    )
+                )?
+                (?:\s+)?
+                (?P<flags_match>(match-any|match-all)\s+)?                              # match tcp flags
+                (?P<tcp_flag>(((\+|-|)ack(\s*?)|(\+|-|)established(\s*?)|(\+|-|)fin(\s*?)|(\+|-|)fragments(\s*?)|(\+|-|)psh(\s*?)|(\+|-|)rst(\s*?)|(\+|-|)syn(\s*?)|urg(\s*?))+))?   # mostly just 'established'
+                (?P<icmp_type>(administratively-prohibited|echo-reply|echo|mask-request|packet-too-big|parameter-problem|port-unreachable|redirect|router-advertisement|router-solicitation|time-exceeded|ttl-exceeded|unreachable))?    # icmp type
+                (?P<log>(log-input|log))?                                               # log
+                )
+                )
+                """
+
+NXOS_RE_PATTERN = r"""
+                ^\s+
+                (?P<sequence>\d+\s)?                                                    # Sequence Number
+                (
+                (?P<remark>remark\s+.*)                                                 # Remark
+                |
+                (
+                (?P<action>permit|deny)\s+                                              # Action
+                (?P<protocol>\S+)\s+                                                    # Protocol
+                (
+                (?P<src_group>addrgroup\s\S+)                                           # Source addrgroup
+                |(?P<src_cidr>\d+\.\d+\.\d+\.\d+\/\d+)                                  # OR Source Network
+                |(?P<src_host>host\s+\d+\.\d+\.\d+\.\d+)                                # OR 'host x.x.x.x'
+                |(?P<src_any>any)                                                       # OR 'any'
+                )
+                (\s+)?
+                (
+                    (?P<src_portgroup>portgroup\s\S+)                                   # OR Source portgroup
+                    |   
+                    (
+                        (?P<src_port_match>(eq|neq|precedence|range|tos|lt|gt))\s+      # Source port Match ('eq' normally)
+                        (
+                        (?P<src_port_start>(?<=range\s)\S+)\s+(?P<src_port_end>\S+)     # Source port range 
+                        |(?P<src_port>(?<!range\s)(?!\d+\.\d+\.\d+\.\d+).+)             # OR Source port (only)
+                        )
+                    )
+                )?
+                (\s+)   
+                (
+                (?P<dst_group>addrgroup\s\S+)                                           # Destination addrgroup
+                |(?P<dst_cidr>\d+\.\d+\.\d+\.\d+/\d+)                                   # OR Destination Network
                 |(?P<dst_host>host\s+\d+\.\d+\.\d+\.\d+)                                # OR 'host x.x.x.x'
                 |(?P<dst_any>any)                                                       # OR 'any'
                 )
@@ -229,6 +285,7 @@ class MigrationData:
 
 @dataclass()
 class ACE:
+    sequence: str = None
     remark: str = None
     action: str = None
     protocol: str = None
@@ -265,6 +322,8 @@ class ACE:
 
     def __post_init__(self):
         # Initialize ACE in a more reusable way
+        if self.sequence:
+            self.sequence = self.sequence.strip()
         if self.remark:
             self.remark = self.remark.replace("remark ", "")
         if self.src_group:
@@ -284,7 +343,7 @@ class ACE:
 
         # Create CIDR if needed
         try:
-            if not self.src_any and self.src_wld:
+            if not self.src_any and self.src_wld and not self.src_cidr:
                 src_net, src_wildcard = self.src_wld.split()
                 self.src_cidr = (
                     src_net
@@ -295,7 +354,7 @@ class ACE:
                         ).prefixlen
                     )
                 )
-            if not self.dst_any and self.dst_wld:
+            if not self.dst_any and self.dst_wld and not self.dst_cidr:
                 dst_net, dst_wildcard = self.dst_wld.split()
                 self.dst_cidr = (
                     dst_net
@@ -315,12 +374,16 @@ class ACE:
                 print(self)
 
     def output_cidr(self):
-        if self.remark:
-            return " " + self.remark
-
         output = " "
-        output += f"{self.action} {self.protocol} "
 
+        if self.sequence:
+            output += f"{self.sequence} "
+
+        if self.remark:
+            output += "remark " + self.remark
+            return output
+
+        output += f"{self.action} {self.protocol} "
         # SOURCE ADDRESS
         if self.src_group:
             output += f"addrgroup {self.src_group} "
@@ -383,11 +446,12 @@ class ACE:
         if my_cidrs:
             for network in my_cidrs:
                 try:
-                    _ = ip_network(network)  # Make sure it's a cidr
+                    _ = ip_network(network, strict=False)  # Make sure it's a cidr
                     cidrs.append(network)
                 except ValueError as e:
                     print(f"ERR: {e}")
                     print("ACE is incorrect")
+                    print(network)
                     print(self.output_cidr())
                     sys.exit()
 
@@ -408,10 +472,14 @@ class ACE:
         return ports
 
     def set_cidrs_ports(self, addr_groups, port_groups):
-        self.src_cidrs = []
-        self.src_ports = []
-        self.dst_cidrs = []
-        self.dst_ports = []
+        if not self.src_cidrs:
+            self.src_cidrs = []
+        if not self.src_ports:
+            self.src_ports = []
+        if not self.dst_cidrs:
+            self.dst_cidrs = []
+        if not self.dst_ports:
+            self.dst_ports = []
 
         if self.remark:
             return
@@ -640,7 +708,14 @@ class ACE:
                         if matches:
                             matches = self.compare_ports(ace_2, "dst_ports")
                             if matches:
-                                return True
+                                more_matches = [
+                                    self.flags_match == ace_2.flags_match,
+                                    self.tcp_flag == ace_2.tcp_flag,
+                                    self.icmp_type == ace_2.icmp_type,
+                                    self.log == ace_2.log,
+                                ]
+                                if all(more_matches):
+                                    return True
 
     def to_contract(self, acl, tenant, src_epg, dst_epg):
         source, destination, source_port, destination_port = "", "", "", ""
@@ -814,3 +889,19 @@ class ACL:
         for ace in self.aces:
             output += ace.output_cidr() + "\n"
         return output
+
+
+@dataclass()
+class NexusACL(ACL):
+    rec = re.compile(NXOS_RE_PATTERN, re.X)
+
+    def __post_init__(self):
+        if self.acl:
+            for child in self.acl.children:
+                results = self.rec.search(child.text)
+                if not results:
+                    print(child.text)
+                    print("^^ERROR WITH ABOVE LINE:^^")
+                else:
+                    ace = ACE(**results.groupdict())
+                    self.aces.append(ace)

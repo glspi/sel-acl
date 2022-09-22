@@ -6,7 +6,7 @@ correct_groups = (
 )
 
 correct_overlaps = [
-    (" ### MY REMARK", " ### MY REMARK"),
+    (" remark ### MY REMARK", " remark ### MY REMARK"),
     (" permit ip 10.1.1.0/24 99.99.99.0/24 ", " permit ip 10.1.1.0/24 99.99.99.0/24 "),
     (
         " permit ip 10.1.1.0/24 99.99.99.0/24 ",
@@ -247,6 +247,8 @@ vlan5_contracts = [
 ]
 vlan6_contracts = []
 vlan7_contracts = []
+
+test_nexus_acl_output = "ip access-list Nexus-From-Vlan1\n 10 remark ### Allow EIGRP\n 20 permit eigrp 10.26.0.0/16 10.26.0.0/16 \n 30 permit eigrp 10.26.0.0/16 224.0.0.10/32 \n 40 permit eigrp 224.0.0.10/32 10.26.0.0/16 \n 50 remark ### Allow DHCP\n 60 permit udp 10.0.0.0/8 eq bootpc addrgroup DHCP-Svrs eq bootps \n 70 permit udp 10.0.0.0/8 eq bootps addrgroup DHCP-Svrs eq bootps \n 80 permit udp addrgroup DHCP-Svrs eq bootps 10.0.0.0/8 eq bootpc \n 90 permit udp addrgroup DHCP-Svrs eq bootps 10.0.0.0/8 eq bootps \n 100 remark ### Allow DNS\n"
 
 test_acl = ACL(
     name="From-Vlan1",
