@@ -583,7 +583,7 @@ class ACE:
         names = []
         if self.src_portgroup:
             names.append(self.src_portgroup)
-        if self.dst_group:
+        if self.dst_portgroup:
             names.append(self.dst_portgroup)
 
         return names

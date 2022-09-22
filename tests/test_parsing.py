@@ -31,7 +31,6 @@ def test_regex_nexus():
 def test_groups():
     filename = "./tests/acl_tests.txt"
     test_acl = get_acl_from_file(filename, "From-Vlan1")
-    # test_acl.acl = None
     assert test_acl.obj_groups() == correct_asserts.correct_groups
 
 
