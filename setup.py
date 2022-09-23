@@ -1,7 +1,7 @@
 """pan_deduper"""
 import setuptools
 
-__version__ = "0.0.73"
+__version__ = "0.0.74"
 __author__ = "Ryan Gillespie"
 
 setuptools.setup(

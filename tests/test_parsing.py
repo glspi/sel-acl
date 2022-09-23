@@ -20,6 +20,13 @@ def test_regex():
     assert test_acl == correct_acl
 
 
+def test_dns_output():
+    filename = "./tests/acl_tests.txt"
+    test_acl = get_acl_from_file(filename, "DNS-Tests")
+    output = test_acl.output_cidr(name="DNS-Tests")
+    assert output == correct_asserts.dns_acl_output
+
+
 def test_regex_nexus():
     filename = "./tests/acl_nxos_tests.txt"
     test_nexus_acl = get_nexus_acl_from_file(filename, "From-Vlan1")
@@ -115,4 +122,5 @@ if __name__ == "__main__":
     # test_eastwest()
     # test_compare_with()
     # test_cidrs_ports()
-    test_regex_nexus()
+    # test_regex_nexus()
+    test_output()

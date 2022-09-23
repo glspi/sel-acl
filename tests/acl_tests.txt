@@ -25,6 +25,11 @@ ip access-list extended From-Vlan1
  permit tcp 10.1.1.0 0.0.0.255 10.1.6.0 0.0.0.255 eq 777 888
  permit tcp 10.1.1.0 0.0.0.255 10.1.6.0 0.0.0.255 range 500 600
 
+ip access-list extended DNS-Tests
+ permit ip host 1.1.1.1 host 8.8.8.8
+ permit ip host 98.137.11.163 10.1.6.0 0.0.0.255
+ permit ip 10.1.1.0 0.0.0.255 host 9.9.9.9
+
 ip access-list extended Overlaps-Acl1
  remark ### MY REMARK
  permit ip 10.1.1.0 0.0.0.255 99.99.99.0 0.0.0.255

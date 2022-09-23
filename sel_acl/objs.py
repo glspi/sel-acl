@@ -1,6 +1,7 @@
 """sel_acl.objs"""
 import ipaddress
 import re
+import socket
 import sys
 from dataclasses import dataclass, field
 from ipaddress import ip_network
@@ -375,6 +376,7 @@ class ACE:
 
     def output_cidr(self):
         output = " "
+        fqdn_remark = ""
 
         if self.sequence:
             output += f"{self.sequence} "
@@ -391,6 +393,14 @@ class ACE:
             output += "any "
         elif self.src_host:
             output += f"{self.src_host} "
+            fqdn_remark += " remark ### From: "
+            try:
+                ip = self.src_host.replace("/32", "")
+                fqdn = socket.gethostbyaddr(ip)[0]
+                fqdn_remark += fqdn
+            except socket.herror:
+                fqdn_remark += "UNKNOWN"
+
         elif self.src_cidr:
             output += f"{self.src_cidr} "
         else:
@@ -413,6 +423,17 @@ class ACE:
             output += "any "
         elif self.dst_host:
             output += f"{self.dst_host} "
+            if fqdn_remark:
+                fqdn_remark += "\tTo: "
+            else:
+                fqdn_remark += " remark ### To: "
+            try:
+                ip = self.dst_host.replace("/32", "")
+                fqdn = socket.gethostbyaddr(ip)[0]
+                fqdn_remark += fqdn
+            except socket.herror:
+                fqdn_remark += "UNKNOWN"
+
         elif self.dst_cidr:
             output += f"{self.dst_cidr} "
         else:
@@ -438,6 +459,8 @@ class ACE:
         if self.log:
             output += f"{self.log} "
 
+        if fqdn_remark:
+            output = fqdn_remark + "\n" + output
         return output
 
     def load_addr_cidrs(self, addr_groups, group):

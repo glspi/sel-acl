@@ -46,6 +46,8 @@ correct_overlaps = [
     ),
 ]
 
+dns_acl_output = "ip access-list DNS-Tests\n remark ### From: one.one.one.one\tTo: dns.google\n permit ip 1.1.1.1/32 8.8.8.8/32 \n remark ### From: media-router-fp74.prod.media.vip.gq1.yahoo.com\n permit ip 98.137.11.163/32 10.1.6.0/24 \n remark ### To: dns9.quad9.net\n permit ip 10.1.1.0/24 9.9.9.9/32 \n"
+
 vlan1_contracts = [
     {
         "acl_name": "From-Vlan1",
