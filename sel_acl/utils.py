@@ -532,7 +532,7 @@ def ew_checker(
                     temp = {
                         "vlan_name": mig_data.vlan_name,
                         "subnet": subnet_str,
-                        "match": f"{acl.name}: {ace.output_cidr()}",
+                        "match": f"{acl.name}: {ace.output_cidr(dns=False)}",
                     }
                     ew_supernets.append(temp)
 

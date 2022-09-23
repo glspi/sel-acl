@@ -374,7 +374,7 @@ class ACE:
                 )
                 print(self)
 
-    def output_cidr(self):
+    def output_cidr(self, dns=True):
         output = " "
         fqdn_remark = ""
 
@@ -393,13 +393,14 @@ class ACE:
             output += "any "
         elif self.src_host:
             output += f"{self.src_host} "
-            fqdn_remark += " remark ### From: "
-            try:
-                ip = self.src_host.replace("/32", "")
-                fqdn = socket.gethostbyaddr(ip)[0]
-                fqdn_remark += fqdn
-            except socket.herror:
-                fqdn_remark += "UNKNOWN"
+            if dns:
+                fqdn_remark += " remark ### From: "
+                try:
+                    ip = self.src_host.replace("/32", "")
+                    fqdn = socket.gethostbyaddr(ip)[0]
+                    fqdn_remark += fqdn
+                except socket.herror:
+                    fqdn_remark += "UNKNOWN"
 
         elif self.src_cidr:
             output += f"{self.src_cidr} "
@@ -423,16 +424,17 @@ class ACE:
             output += "any "
         elif self.dst_host:
             output += f"{self.dst_host} "
-            if fqdn_remark:
-                fqdn_remark += "\tTo: "
-            else:
-                fqdn_remark += " remark ### To: "
-            try:
-                ip = self.dst_host.replace("/32", "")
-                fqdn = socket.gethostbyaddr(ip)[0]
-                fqdn_remark += fqdn
-            except socket.herror:
-                fqdn_remark += "UNKNOWN"
+            if dns:
+                if fqdn_remark:
+                    fqdn_remark += "\tTo: "
+                else:
+                    fqdn_remark += " remark ### To: "
+                try:
+                    ip = self.dst_host.replace("/32", "")
+                    fqdn = socket.gethostbyaddr(ip)[0]
+                    fqdn_remark += fqdn
+                except socket.herror:
+                    fqdn_remark += "UNKNOWN"
 
         elif self.dst_cidr:
             output += f"{self.dst_cidr} "
