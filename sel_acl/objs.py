@@ -206,6 +206,7 @@ class CustomWorksheet:
             "acl_name_out": out,
             "tenant": self.worksheet[self.col_dict["TENANT"] + str(row)].value,
             "subnet": subnets,
+            "epg": self.worksheet[self.col_dict["EPG"] + str(row)].value,
         }
 
         for k, v in data.items():
@@ -214,9 +215,6 @@ class CustomWorksheet:
             else:
                 if isinstance(v, str):
                     data[k] = v.strip()
-
-        # Temp EPG Name
-        data["epg"] = "EPG-" + data["vlan_name"]
 
         return MigrationData(**data)
 
