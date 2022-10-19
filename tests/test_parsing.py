@@ -94,6 +94,8 @@ def test_east_west():
             correct_contracts.append(correct_contract)
             contracts.append(ew_contracts)
 
+    # print(contracts)
+    # sys.exit()
     assert contracts == correct_contracts
 
     # UNCOMMENT AND RUN MANUALLY TO GET CONTRACT OUTPUT
@@ -119,8 +121,8 @@ def test_east_west():
 if __name__ == "__main__":
     # test_regex()
     # test_groups()
-    # test_eastwest()
+    test_east_west()
     # test_compare_with()
     # test_cidrs_ports()
     # test_regex_nexus()
-    test_output()
+    # test_output()

@@ -501,8 +501,10 @@ def ew_checker(
     ew_contracts = []
     ew_supernets = []
     for mig_data in ew_mig_data:
-        for ace in acl.aces:
+        for index, ace in enumerate(acl.aces):
             if ace.remark:
+                continue
+            if ace.tcp_flag == "established":
                 continue
             for subnet in mig_data.subnet:
                 if direction == "in":
@@ -522,6 +524,7 @@ def ew_checker(
                         dst_epg=mig_data.epg,
                         src_application=my_mig_data.application,
                         dst_application=mig_data.application,
+                        remark=acl.aces[index - 1].remark,
                     )
                     ew_aces.append(ace)
                     ew_contracts.append(contract)

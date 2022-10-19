@@ -1,11 +1,11 @@
 """sel_aci.cli"""
+import sys
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
 import typer
 
 from sel_aci import utils
-import sys
 from sel_acl import objs
 
 app = typer.Typer(
@@ -24,29 +24,42 @@ def create(
         prompt="Excel Filename for List of VLAN's/ACL's/tenants: ",
         metavar="Excel Filename for List of VLAN's/ACL's/tenants",
     ),
-    filter_list: Optional[str] = typer.Option(
+    filter_file: Optional[str] = typer.Option(
+        None, "--filters", metavar="Text file containing existing filter names"
+    ),
+    contract_file: Optional[str] = typer.Option(
         None,
-        "--filters",
-        metavar="Text file containing existing filter names"
-    )
+        "--contracts",
+        "-c",
+        metavar="Text file containing existing contract names",
+    ),
 ) -> None:
     """
     Spit out JSON to create ACI Contracts
     """
-    filters = []
-    if filter_list:
+    filter_names = []
+    if filter_file:
         try:
-            with open(filter_list) as fin:
+            with open(filter_file) as fin:
                 for line in fin.readlines():
-                    filters.append(line.strip())
+                    filter_names.append(line.strip())
         except FileNotFoundError:
             print("Filter list file not found!")
 
-    utils.create_contracts(excel_filename, filters)
+    contract_names = []
+    if contract_file:
+        try:
+            with open(contract_file) as fin:
+                for line in fin.readlines():
+                    contract_names.append(line.strip())
+        except FileNotFoundError:
+            print("Filter list file not found!")
+
+    utils.main(excel_filename, filter_names, contract_names)
 
 
-@app.command("filters", help="Retrieve new filter name list")
-def get_filters(
+@app.command("get", help="Create Filter and Contract name text files.")
+def get_aci_objects(
     aci: Optional[str] = typer.Option(
         None, "--ip", "-i", prompt="ACI IP/FQDN", metavar="ACI IP/FQDN"
     ),
@@ -60,7 +73,7 @@ def get_filters(
         None, "--tenant", "-t", prompt="ACI Tenant", metavar="ACI Tenant"
     ),
 ) -> None:
-    utils.get_filters(aci, username, password, tenant)
+    utils.get_aci_objects(aci, username, password, tenant)
 
 
 if __name__ == "__main__":

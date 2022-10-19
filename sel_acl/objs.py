@@ -207,7 +207,9 @@ class CustomWorksheet:
             "tenant": self.worksheet[self.col_dict["TENANT"] + str(row)].value,
             "subnet": subnets,
             "epg": self.worksheet[self.col_dict["EPG"] + str(row)].value,
-            "application": self.worksheet[self.col_dict["APPLICATION"] + str(row)].value,
+            "application": self.worksheet[
+                self.col_dict["APPLICATION"] + str(row)
+            ].value,
         }
 
         for k, v in data.items():
@@ -742,7 +744,9 @@ class ACE:
                                 if all(more_matches):
                                     return True
 
-    def to_contract(self, acl, tenant, src_epg, dst_epg, src_application, dst_application):
+    def to_contract(
+        self, acl, tenant, src_epg, dst_epg, src_application, dst_application, remark
+    ):
         source, destination, source_port, destination_port = "", "", "", ""
 
         # SOURCE
@@ -783,6 +787,9 @@ class ACE:
         elif self.dst_port:
             destination_port = f"{self.dst_port}"
 
+        if not remark:
+            remark = ""
+
         contract = {
             "acl_name": acl.name,
             "action": self.action,
@@ -800,6 +807,7 @@ class ACE:
             "dst_address": destination,
             "dst_port": destination_port,
             "flags": self.tcp_flag,
+            "remark": remark,
             "contract": "",
             "access-list": "",
             "ace": "",
@@ -914,6 +922,8 @@ class ACL:
     def output_cidr(self, name: str):
         output = f"ip access-list {name}\n"
         for ace in self.aces:
+            if ace.tcp_flag == "established":
+                continue
             output += ace.output_cidr() + "\n"
         return output
 
