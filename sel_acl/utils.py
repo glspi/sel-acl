@@ -363,6 +363,7 @@ def ns_ew_combined(ws, mig_data, acl, addr_groups):
 def create_contracts(ew_aces, ew_contracts, acl, filename):
     print(f"\n\nEast/West Contracts found in {acl.name}:")
     print("---------------------")
+
     if ew_contracts:
         for ace in ew_aces:
             if ace in acl.aces:
@@ -519,6 +520,8 @@ def ew_checker(
                         tenant=mig_data.tenant,
                         src_epg=my_mig_data.epg,
                         dst_epg=mig_data.epg,
+                        src_application=my_mig_data.application,
+                        dst_application=mig_data.application,
                     )
                     ew_aces.append(ace)
                     ew_contracts.append(contract)

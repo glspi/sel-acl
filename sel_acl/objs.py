@@ -207,6 +207,7 @@ class CustomWorksheet:
             "tenant": self.worksheet[self.col_dict["TENANT"] + str(row)].value,
             "subnet": subnets,
             "epg": self.worksheet[self.col_dict["EPG"] + str(row)].value,
+            "application": self.worksheet[self.col_dict["APPLICATION"] + str(row)].value,
         }
 
         for k, v in data.items():
@@ -280,6 +281,7 @@ class MigrationData:
     tenant: str
     subnet: str
     epg: str
+    application: str
 
 
 @dataclass()
@@ -740,7 +742,7 @@ class ACE:
                                 if all(more_matches):
                                     return True
 
-    def to_contract(self, acl, tenant, src_epg, dst_epg):
+    def to_contract(self, acl, tenant, src_epg, dst_epg, src_application, dst_application):
         source, destination, source_port, destination_port = "", "", "", ""
 
         # SOURCE
@@ -788,10 +790,12 @@ class ACE:
             "src_aci": "",
             "src_tenant": tenant,
             "src_epg": src_epg,
+            "src_application": src_application,
             "src_address": source,
             "src_port": source_port,
             "dst_tenant": tenant,
             "dst_epg": dst_epg,
+            "dst_application": dst_application,
             "dst_aci": "",
             "dst_address": destination,
             "dst_port": destination_port,

@@ -1,0 +1,39 @@
+{
+  "vzBrCP": {
+    "attributes": {
+      "name": "{{CONTRACT_NAME}}",
+      "scope": "tenant"
+    },
+    "children": [
+      {
+        "vzSubj": {
+          "attributes": {
+            "name": "{{SUBJECT_NAME}}"
+          },
+          "children": [
+              {
+                  "vzInTerm": {
+                      "attributes": {
+                          "annotation": "",
+                          "descr": "descr1",
+                          "name": "name1",
+                          "nameAlias": ""
+                      },
+                      "children": [
+                          {
+                              "vzRsFiltAtt": {
+                                  "attributes": {
+                                      "action": "{{ACTION}}",
+                                      "tnVzFilterName": "{{FILTER_NAME}}"
+                                  }
+                              }
+                        }
+                    ]
+                  }
+              }
+          ]
+        }
+      }
+    ]
+  }
+}

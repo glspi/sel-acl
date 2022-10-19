@@ -14,7 +14,7 @@ setuptools.setup(
         "ciscoconfparse==1.6.40",
         "rich==12.5.1",
         "httpx==0.23.0",
-        "jinja2==3.1.2"
+        "jinja2==3.1.2",
     ],
     classifiers=[
         "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
@@ -28,6 +28,7 @@ setuptools.setup(
         "Programming Language :: Python :: 3 :: Only",
     ],
     python_requires=">=3.7",
-    entry_points={"console_scripts": ["sel-acl = sel_acl.cli:app",
-                                      "sel-aci = sel_aci.cli:app"]},
+    entry_points={
+        "console_scripts": ["sel-acl = sel_acl.cli:app", "sel-aci = sel_aci.cli:app"]
+    },
 )
