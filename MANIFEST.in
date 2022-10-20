@@ -1,0 +1,2 @@
+recursive-include sel_aci/templates *
+recursive-include sel_aci/templates-5.2 *

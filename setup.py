@@ -8,6 +8,7 @@ setuptools.setup(
     name="sel_acl",
     version=__version__,
     packages=["sel_acl", "sel_aci"],
+    include_package_data=True,
     install_requires=[
         "typer==0.6.1",
         "openpyxl==3.0.10",
