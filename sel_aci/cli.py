@@ -5,8 +5,7 @@ from typing import Dict, List, Optional
 
 import typer
 
-from sel_aci import utils
-from sel_acl import objs
+from sel_aci import objs, utils
 
 app = typer.Typer(
     name="sel-aci",
@@ -25,13 +24,19 @@ def create(
         metavar="Excel Filename for List of VLAN's/ACL's/tenants",
     ),
     filter_file: Optional[str] = typer.Option(
-        None, "--filters", metavar="Text file containing existing filter names"
+        None,
+        "--filters",
+        "-t",
+        metavar="Optional: Text file containing existing filter names",
     ),
     contract_file: Optional[str] = typer.Option(
         None,
         "--contracts",
         "-c",
-        metavar="Text file containing existing contract names",
+        metavar="Optional: Text file containing existing contract names",
+    ),
+    version: Optional[str] = typer.Option(
+        "4.2", "--version", "-v", metavar="Optional: Set to '5.2' for ACI 5.2 output."
     ),
 ) -> None:
     """
@@ -55,7 +60,7 @@ def create(
         except FileNotFoundError:
             print("Filter list file not found!")
 
-    utils.main(excel_filename, filter_names, contract_names)
+    utils.main(excel_filename, filter_names, contract_names, version)
 
 
 @app.command("get", help="Create Filter and Contract name text files.")

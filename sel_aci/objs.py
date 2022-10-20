@@ -2,17 +2,33 @@ import sys
 from dataclasses import dataclass, field
 
 import openpyxl
-from jinja2 import Environment, FileSystemLoader, StrictUndefined, Template
+from jinja2 import (
+    Environment,
+    FileSystemLoader,
+    PackageLoader,
+    StrictUndefined,
+    Template,
+)
 from openpyxl.utils.exceptions import InvalidFileException
 from openpyxl.workbook.workbook import Workbook
 
+j2_env = None
+
+
 # Jinja Environment
-j2_env = Environment(
-    loader=FileSystemLoader("sel_aci/templates"),
-    lstrip_blocks=True,
-    trim_blocks=True,
-    undefined=StrictUndefined,
-)
+def set_j2_env(version):
+    if version == "5.2":
+        folder = "templates-5.2"
+    else:
+        folder = "templates"
+    global j2_env
+    j2_env = Environment(
+        # loader=FileSystemLoader("sel_aci/templates"),
+        loader=PackageLoader("sel_aci", folder),
+        lstrip_blocks=True,
+        trim_blocks=True,
+        undefined=StrictUndefined,
+    )
 
 
 def load_excel(filename: str) -> openpyxl.workbook.workbook.Workbook:
@@ -46,7 +62,11 @@ class AciData:
     def filters(self):
 
         my_filter = AciFilter(
-            protocol=self.protocol, src_port=self.src_port, dst_port=self.dst_port, src_portgroup=self.src_portgroup, dst_portgroup=self.dst_portgroup
+            protocol=self.protocol,
+            src_port=self.src_port,
+            dst_port=self.dst_port,
+            src_portgroup=self.src_portgroup,
+            dst_portgroup=self.dst_portgroup,
         )
 
         return my_filter
@@ -134,7 +154,7 @@ class AciFilter:
         if not self.name:
             self.name = f"{self.protocol}_"
             if self.src_portgroup:
-                self.name +=f"Src_{self.src_portgroup}_"
+                self.name += f"Src_{self.src_portgroup}_"
             elif self.src_port:
                 self.name += f"Src_{self.src_port}_"
             if self.dst_portgroup:
@@ -157,17 +177,42 @@ class AciFilter:
 
         if self.protocol not in ("TCP", "UDP"):
             # Supported ACI IPv4 Protocols:
-            if self.protocol in ("EIGRP", "EGP", "ICMP", "IGMP", "IGP", "L2TP", "OSFPIGP", "PIM"):
+            if self.protocol in (
+                "EIGRP",
+                "EGP",
+                "ICMP",
+                "IGMP",
+                "IGP",
+                "L2TP",
+                "OSFPIGP",
+                "PIM",
+            ):
                 protocol = self.protocol.lower()
             elif self.protocol == "IP":
                 protocol = "unspecified"
             else:
-                print(f"Protocol {self.protocol} is not supported in ACI, please fix contract spreadsheet.")
+                print(
+                    f"Protocol {self.protocol} is not supported in ACI, please fix contract spreadsheet."
+                )
                 sys.exit()
-            self.add_rule(rule_num, protocol, src_port_from, src_port_to, dst_port_from, dst_port_to)
+            self.add_rule(
+                rule_num,
+                protocol,
+                src_port_from,
+                src_port_to,
+                dst_port_from,
+                dst_port_to,
+            )
         else:
             if not self.src_port and not self.dst_port:
-                self.add_rule(rule_num, self.protocol.lower(), src_port_from, src_port_to, dst_port_from, dst_port_to)
+                self.add_rule(
+                    rule_num,
+                    self.protocol.lower(),
+                    src_port_from,
+                    src_port_to,
+                    dst_port_from,
+                    dst_port_to,
+                )
             protocol = self.protocol.lower()
 
         # SOURCE
@@ -187,7 +232,14 @@ class AciFilter:
                                     dst_port_from, dst_port_to = dst_port.split(" - ")
                                 else:
                                     dst_port_from = dst_port_to = dst_port
-                    self.add_rule(rule_num, protocol, src_port_from, src_port_to, dst_port_from, dst_port_to)
+                    self.add_rule(
+                        rule_num,
+                        protocol,
+                        src_port_from,
+                        src_port_to,
+                        dst_port_from,
+                        dst_port_to,
+                    )
                     rule_num += 1
             else:
                 if "-" in self.src_port:
@@ -208,7 +260,14 @@ class AciFilter:
                             dst_port_from, dst_port_to = self.dst_port.split(" - ")
                         else:
                             dst_port_from = dst_port_to = self.dst_port
-                self.add_rule(rule_num, protocol, src_port_from, src_port_to, dst_port_from, dst_port_to)
+                self.add_rule(
+                    rule_num,
+                    protocol,
+                    src_port_from,
+                    src_port_to,
+                    dst_port_from,
+                    dst_port_to,
+                )
 
         # DEST
         elif self.dst_port:
@@ -219,7 +278,14 @@ class AciFilter:
                         dst_port_from, dst_port_to = port.split(" - ")
                     else:
                         dst_port_from = dst_port_to = port
-                    self.add_rule(rule_num, protocol, src_port_from, src_port_to, dst_port_from, dst_port_to)
+                    self.add_rule(
+                        rule_num,
+                        protocol,
+                        src_port_from,
+                        src_port_to,
+                        dst_port_from,
+                        dst_port_to,
+                    )
                     rule_num += 1
                 # complete = True
                 # continue
@@ -228,9 +294,18 @@ class AciFilter:
                     dst_port_from, dst_port_to = self.dst_port.split(" - ")
                 else:
                     dst_port_from = dst_port_to = self.dst_port
-                self.add_rule(rule_num, protocol, src_port_from, src_port_to, dst_port_from, dst_port_to)
+                self.add_rule(
+                    rule_num,
+                    protocol,
+                    src_port_from,
+                    src_port_to,
+                    dst_port_from,
+                    dst_port_to,
+                )
 
-    def add_rule(self, rule_num, protocol, src_port_from, src_port_to, dst_port_from, dst_port_to):
+    def add_rule(
+        self, rule_num, protocol, src_port_from, src_port_to, dst_port_from, dst_port_to
+    ):
         rule = AciFilterRule(
             **{
                 "name": f"{rule_num}",
@@ -238,7 +313,7 @@ class AciFilter:
                 "src_port_from": src_port_from,
                 "src_port_to": src_port_to,
                 "dst_port_from": dst_port_from,
-                "dst_port_to": dst_port_to
+                "dst_port_to": dst_port_to,
             }
         )
         self.rules.append(rule)
@@ -250,13 +325,6 @@ class AciFilter:
         new_filter = j2_filter.render(FILTER_NAME=self.name, ITEMS=rules)
 
         return new_filter
-
-
-# def port_logic(port)
-#     if "-" in port:
-#         port_from, port_to = port.split(" - ")
-#     else:
-#         port_from, port_to = port
 
 
 @dataclass()
@@ -294,9 +362,13 @@ class CustomWorksheet:
                     self.col_dict["PROTOCOL"] + str(row)
                 ].value.upper(),
                 "src_port": src_port,
-                "src_portgroup": self.worksheet[self.col_dict["SRC_PORTGROUP"] + str(row)].value,
+                "src_portgroup": self.worksheet[
+                    self.col_dict["SRC_PORTGROUP"] + str(row)
+                ].value,
                 "dst_port": dst_port,
-                "dst_portgroup": self.worksheet[self.col_dict["DST_PORTGROUP"] + str(row)].value,
+                "dst_portgroup": self.worksheet[
+                    self.col_dict["DST_PORTGROUP"] + str(row)
+                ].value,
                 "src_epg": self.worksheet[self.col_dict["SRC_EPG"] + str(row)].value,
                 "src_ap": self.worksheet[
                     self.col_dict["SRC_APPLICATION"] + str(row)

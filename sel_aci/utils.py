@@ -1,22 +1,9 @@
-import sys
 import os
+import sys
 
-from jinja2 import Environment, FileSystemLoader, StrictUndefined, Template
-from rich.pretty import pprint
-
+import sel_aci.objs
 from sel_aci.aci import ACI
-from sel_aci.objs import AciContract, AciSubject, CustomWorksheet
-
-# def get_epg_provider_consumers(contract, contract_name, filter_name):
-#     associations = {}
-#     if "Dst" in filter_name:
-#         associations["consumer"] = contract["src_epg"]
-#         associations["provider"] = contract["dst_epg"]
-#     elif "Src" in filter_name:
-#         associations["consumer"] = contract["dst_epg"]
-#         associations["provider"] = contract["src_epg"]
-#
-#     return associations
+from sel_aci.objs import AciContract, AciSubject, CustomWorksheet, set_j2_env
 
 
 def get_aci_objects(aci: str, username: str, password: str, tenant: str) -> None:
@@ -33,16 +20,12 @@ def get_aci_objects(aci: str, username: str, password: str, tenant: str) -> None
         print(f"{obj_type.capitalize()} created at: {filename}")
 
 
-def main(excel_filename, filter_names, contract_names):
+def main(excel_filename, filter_names, contract_names, version):
+
     # Create File
     ws = CustomWorksheet(excel_filename=excel_filename)
     # Jinja Environment
-    j2_env = Environment(
-        loader=FileSystemLoader("sel_aci/templates"),
-        lstrip_blocks=True,
-        trim_blocks=True,
-        undefined=StrictUndefined,
-    )
+    set_j2_env(version)
 
     aci_data = ws.get_contracts()
 
@@ -55,7 +38,6 @@ def main(excel_filename, filter_names, contract_names):
     new_filters = []
     new_contracts = []
     new_subjects = {}
-    new_epg_associations = []
     for line in aci_data:
         my_filter = line.filters()
         contract_name = line.contract_name
@@ -93,7 +75,7 @@ def main(excel_filename, filter_names, contract_names):
 
     # Begin output
     print("\n")
-    j2_tenant_base = j2_env.get_template("base_tenant.jinja2")
+    j2_tenant_base = sel_aci.objs.j2_env.get_template("base_tenant.jinja2")
     os.makedirs("aci-json", exist_ok=True)
 
     # Create JSON for Filters
@@ -115,7 +97,7 @@ def main(excel_filename, filter_names, contract_names):
 
     # Create JSON for Subjects
     if len(new_subjects.keys()) > 0:
-        j2_contract_base = j2_env.get_template("base_contract.jinja2")
+        j2_contract_base = sel_aci.objs.j2_env.get_template("base_contract.jinja2")
         for contract_name in new_subjects.keys():
             filename = f"aci-json/new-subjects-{contract_name}.json"
             print(f"New subjects found, creating at: {filename}")
