@@ -72,7 +72,7 @@ def get_aci_objects(
         None, "--username", "-u", prompt="ACI Username", metavar="ACI Username"
     ),
     password: Optional[str] = typer.Option(
-        None, "--password", "-p", prompt="ACI Password", metavar="ACI Password"
+        None, "--password", "-p", prompt="ACI Password", metavar="ACI Password", hide_input=True
     ),
     tenant: Optional[str] = typer.Option(
         None, "--tenant", "-t", prompt="ACI Tenant", metavar="ACI Tenant"
