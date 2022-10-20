@@ -52,42 +52,6 @@ class ACI:
                 print("Unknown error getting token, exiting..")
                 sys.exit()
 
-    def get_filters(self, tenant: str) -> List[str]:
-        url = (
-            self.base_url
-            + f"mo/uni/tn-{tenant}.json?query-target=children&target-subtree-class=vzFilter"
-        )
-
-        try:
-            response = self.session[self.token].get(url=url)
-        except httpx.RequestError as e:
-            print(f"{url=}")
-            print("Request error: ", e)
-            sys.exit()
-        except httpx.HTTPStatusError as e:
-            print(f"{url=}")
-            print("HTTP Status error: ", e)
-            sys.exit()
-
-        if not response.status_code == 200:
-            print("Login error, exiting..")
-            print(response.json())
-            sys.exit()
-        else:
-            try:
-                filters = []
-                temp = response.json()["imdata"]
-                for aci_filter in temp:
-                    name = aci_filter["vzFilter"]["attributes"]["name"]
-                    filters.append(name)
-            except Exception:
-                print("Response:")
-                print(response.json())
-                print("Unknown error getting filters, exiting..")
-                sys.exit()
-
-            return filters
-
     def get_object_names(self, tenant: str, obj_type) -> List[str]:
         url = (
             self.base_url

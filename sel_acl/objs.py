@@ -760,7 +760,15 @@ class ACE:
             source = self.src_cidr
 
         if self.src_portgroup:
-            source_port = self.src_portgroup
+            # source_port = self.src_portgroup
+            source_port = ""
+            for port in self.src_ports:
+                if "range" in port:
+                    _, _, start, end = port.split(" ")
+                    source_port += f"{start} - {end},"
+                else:
+                    source_port += f"{port},"
+            source_port = source_port.rstrip(",")
         # elif self.src_port_match:
         #     source_port = f"{self.src_port_match} "
         if self.src_port_start and self.src_port_end:
@@ -779,7 +787,15 @@ class ACE:
             destination = self.dst_cidr
 
         if self.dst_portgroup:
-            destination_port = self.dst_portgroup
+            #destination_port = self.dst_portgroup
+            source_port = ""
+            for port in self.dst_ports:
+                if "range" in port:
+                    _, _, start, end = port.split(" ")
+                    destination_port += f"{start} - {end},"
+                else:
+                    destination_port += f"{port},"
+            destination_port = destination_port.rstrip(",")
         # elif self.dst_port_match:
         #     destination_port_match = f"{self.dst_port_match} "
         elif self.dst_port_start and self.dst_port_end:
@@ -800,12 +816,14 @@ class ACE:
             "src_application": src_application,
             "src_address": source,
             "src_port": source_port,
+            "src_portgroup": self.src_portgroup,
             "dst_tenant": tenant,
             "dst_epg": dst_epg,
             "dst_application": dst_application,
             "dst_aci": "",
             "dst_address": destination,
             "dst_port": destination_port,
+            "dst_portgroup": self.dst_portgroup,
             "flags": self.tcp_flag,
             "remark": remark,
             "contract": "",

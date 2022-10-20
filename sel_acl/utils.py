@@ -326,7 +326,7 @@ def output_to_file(
     print(f"File created at: {filename}\n")
 
 
-def ns_ew_combined(ws, mig_data, acl, addr_groups):
+def ns_ew_combined(ws, mig_data, acl, addr_groups, port_groups = None):
 
     ew_mig_data = ws.get_tenant_rows(tenant=mig_data.tenant)
     if ew_mig_data:
@@ -346,6 +346,7 @@ def ns_ew_combined(ws, mig_data, acl, addr_groups):
             addr_groups=addr_groups,
             my_mig_data=mig_data,
             direction=direction,
+            port_groups=port_groups
         )
         if ew_supernets:
             print(f"\n\nSUPERnet rules found in {acl.name}:")
@@ -417,7 +418,7 @@ def run_ns(acls: List[ACL], addr_groups, port_groups, ws, mig_data):
     for acl in acls:
         print(f"\nChecking {acl.name} and Tenant {mig_data.tenant} networks..\n")
         ew_aces, _ = ns_ew_combined(
-            ws=ws, mig_data=mig_data, addr_groups=addr_groups, acl=acl
+            ws=ws, mig_data=mig_data, addr_groups=addr_groups, acl=acl,
         )
         output_and_remark_acl(
             acl=acl,
@@ -451,6 +452,7 @@ def run_contracts(acls: List[ACL], addr_groups, port_groups, ws, mig_data):
             mig_data=mig_data,
             addr_groups=addr_groups,
             acl=acl,
+            port_groups=port_groups
         )
         create_contracts(
             ew_aces=ew_aces,
@@ -479,6 +481,9 @@ def create_contract_file(filename: str, contracts: List[Dict[str, str]]):
     col_dict = {}
     for col in ws.iter_cols(1, ws.max_column):
         col_dict[col[0].value.upper()] = col[0].column_letter
+    #
+    # from rich.pretty import pprint
+    # pprint(contracts)
 
     for contract in contracts:
         cell_dict = {}
@@ -496,6 +501,7 @@ def ew_checker(
     addr_groups: Dict[str, List[str]],
     my_mig_data: MigrationData,
     direction: str = "in",
+    port_groups = None
 ):
     ew_aces = []
     ew_contracts = []
@@ -517,6 +523,7 @@ def ew_checker(
                     )
 
                 if src_dest_in == "subnet":
+                    ace.set_cidrs_ports(addr_groups=addr_groups, port_groups=port_groups)
                     contract = ace.to_contract(
                         acl=acl,
                         tenant=mig_data.tenant,

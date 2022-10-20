@@ -7,7 +7,7 @@
                 },
                 "children": [
                     {% for ITEM in ITEMS %}
-                    {{ITEM|indent(20)}}{{"," if not loop.last}}
+                    {{ ITEM|indent(20) }}{{ "," if not loop.last }}
                     {% endfor %}
                 ]
             }

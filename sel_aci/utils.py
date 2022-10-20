@@ -1,4 +1,5 @@
 import sys
+import os
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined, Template
 from rich.pretty import pprint
@@ -93,17 +94,18 @@ def main(excel_filename, filter_names, contract_names):
     # Begin output
     print("\n")
     j2_tenant_base = j2_env.get_template("base_tenant.jinja2")
+    os.makedirs("aci-json", exist_ok=True)
 
     # Create JSON for Filters
     if new_contracts:
-        filename = f"new-filters-{tenant}.json"
+        filename = f"aci-json/new-filters-{tenant}.json"
         print(f"New filters found, creating at: {filename}")
         with open(filename, "w") as fout:
             fout.write(j2_tenant_base.render(ITEMS=new_filters))
 
     # Create JSON for Contracts
     if new_contracts:
-        filename = f"new-contracts-{tenant}.json"
+        filename = f"aci-json/new-contracts-{tenant}.json"
         print(f"New contracts found, creating at: {filename}")
         with open(filename, "w") as fout:
             fout.write(j2_tenant_base.render(ITEMS=new_contracts))
@@ -115,7 +117,7 @@ def main(excel_filename, filter_names, contract_names):
     if len(new_subjects.keys()) > 0:
         j2_contract_base = j2_env.get_template("base_contract.jinja2")
         for contract_name in new_subjects.keys():
-            filename = f"new-subjects-{contract_name}.json"
+            filename = f"aci-json/new-subjects-{contract_name}.json"
             print(f"New subjects found, creating at: {filename}")
             subjects = new_subjects[contract_name]["subjects"]
             with open(filename, "w") as fout:
