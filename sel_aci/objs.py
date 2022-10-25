@@ -84,8 +84,10 @@ class AciSubject:
     def json(self):
         if self.protocol == "UDP":
             j2_subject = j2_env.get_template("new_subject_udp.jinja2")
+        elif self.protocol == "TCP":
+            j2_subject = j2_env.get_template("new_subject_tcp.jinja2")
         else:
-            j2_subject = j2_env.get_template("new_subject.jinja2")
+            j2_subject = j2_env.get_template("new_subject_other.jinja2")
 
         kwargs = {
             "SUBJECT_NAME": self.name,
