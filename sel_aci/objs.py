@@ -375,7 +375,7 @@ class AciTenant:
         contract_ouput = [contract.json() for contract in self.contracts]
         children = filter_output + contract_ouput
         with open(filename, "w") as fout:
-            fout.write(j2_tenant_base.render(CHILDREN=children))
+            fout.write(j2_tenant_base.render(NAME=self.name, CHILDREN=children))
 
         print(f"{filename} created.")
 
