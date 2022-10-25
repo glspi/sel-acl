@@ -1,14 +1,9 @@
 import sys
 from dataclasses import dataclass, field
+from typing import List
 
 import openpyxl
-from jinja2 import (
-    Environment,
-    FileSystemLoader,
-    PackageLoader,
-    StrictUndefined,
-    Template,
-)
+from jinja2 import Environment, PackageLoader, StrictUndefined
 from openpyxl.utils.exceptions import InvalidFileException
 from openpyxl.workbook.workbook import Workbook
 
@@ -73,17 +68,6 @@ class AciData:
 
 
 @dataclass()
-class AciContract:
-    name: str
-    filter_name: str
-
-    def to_json(self):
-        j2_contract = j2_env.get_template("empty_contract.jinja2")
-        new_contract = j2_contract.render(CONTRACT_NAME=self.name)
-        return new_contract
-
-
-@dataclass()
 class AciSubject:
     filter_name: str
     action: str
@@ -97,7 +81,7 @@ class AciSubject:
             self.name = f"{self.action.capitalize()}_{self.filter_name}"
             self.name = self.name.replace("_Fltr", "_Subj")
 
-    def to_json(self):
+    def json(self):
         if self.protocol == "UDP":
             j2_subject = j2_env.get_template("new_subject_udp.jinja2")
         else:
@@ -122,7 +106,7 @@ class AciFilterRule:
     dst_port_from: str
     dst_port_to: str
 
-    def to_json(self):
+    def json(self):
         j2_rule = j2_env.get_template("new_filter_rule.jinja2")
 
         kwargs = {
@@ -169,7 +153,7 @@ class AciFilter:
     # this is SUPER ugly!!! fix?!??!
     def set_rules(self):
         # Default values
-        rule_num = 1
+        base_rule_name = self.name.replace("_Fltr", "")
         src_port_from = "unspecified"
         src_port_to = "unspecified"
         dst_port_from = "unspecified"
@@ -195,8 +179,9 @@ class AciFilter:
                     f"Protocol {self.protocol} is not supported in ACI, please fix contract spreadsheet."
                 )
                 sys.exit()
+            # Add a rule to a non tcp/udp filter
             self.add_rule(
-                rule_num,
+                base_rule_name,
                 protocol,
                 src_port_from,
                 src_port_to,
@@ -204,9 +189,10 @@ class AciFilter:
                 dst_port_to,
             )
         else:
+            # Add a rule to a 'blank/no ports' filter
             if not self.src_port and not self.dst_port:
                 self.add_rule(
-                    rule_num,
+                    base_rule_name,
                     self.protocol.lower(),
                     src_port_from,
                     src_port_to,
@@ -220,28 +206,45 @@ class AciFilter:
             if "," in self.src_port:
                 ports = self.src_port.split(",")
                 for port in ports:
+                    extra_rule_name = f"{base_rule_name}_{port}"
                     if "-" in port:
                         src_port_from, src_port_to = port.split(" - ")
                     else:
                         src_port_from = src_port_to = port
                     if self.dst_port:
                         if "," in self.dst_port:
+                            extra_extra_rule_name = f"{extra_rule_name}_to"
                             dst_ports = self.dst_port.split(",")
                             for dst_port in dst_ports:
+                                extra_extra_rule_name += f"_{dst_port}"
                                 if "-" in dst_port:
                                     dst_port_from, dst_port_to = dst_port.split(" - ")
                                 else:
                                     dst_port_from = dst_port_to = dst_port
+                                self.add_rule(
+                                    extra_extra_rule_name.replace(" ", ""),
+                                    protocol,
+                                    src_port_from,
+                                    src_port_to,
+                                    dst_port_from,
+                                    dst_port_to,
+                                )
+                        else:
+                            extra_rule_name += f"_to_{self.dst_port}"
+                            if "-" in self.dst_port:
+                                dst_port_from, dst_port_to = self.dst_port.split(" - ")
+                            else:
+                                dst_port_from = dst_port_to = self.dst_port
                     self.add_rule(
-                        rule_num,
+                        extra_rule_name.replace(" ", ""),
                         protocol,
                         src_port_from,
                         src_port_to,
                         dst_port_from,
                         dst_port_to,
                     )
-                    rule_num += 1
             else:
+                rule_name = f"{base_rule_name}"
                 if "-" in self.src_port:
                     src_port_from, src_port_to = self.src_port.split(" - ")
                 else:
@@ -261,7 +264,7 @@ class AciFilter:
                         else:
                             dst_port_from = dst_port_to = self.dst_port
                 self.add_rule(
-                    rule_num,
+                    rule_name.replace(" ", ""),
                     protocol,
                     src_port_from,
                     src_port_to,
@@ -274,28 +277,27 @@ class AciFilter:
             if "," in self.dst_port:
                 ports = self.dst_port.split(",")
                 for port in ports:
+                    extra_rule_name = f"{base_rule_name}_{port}"
                     if "-" in port:
                         dst_port_from, dst_port_to = port.split(" - ")
                     else:
                         dst_port_from = dst_port_to = port
                     self.add_rule(
-                        rule_num,
+                        extra_rule_name.replace(" ", ""),
                         protocol,
                         src_port_from,
                         src_port_to,
                         dst_port_from,
                         dst_port_to,
                     )
-                    rule_num += 1
-                # complete = True
-                # continue
             else:
+                rule_name = f"{base_rule_name}"
                 if "-" in self.dst_port:
                     dst_port_from, dst_port_to = self.dst_port.split(" - ")
                 else:
                     dst_port_from = dst_port_to = self.dst_port
                 self.add_rule(
-                    rule_num,
+                    rule_name.replace(" ", ""),
                     protocol,
                     src_port_from,
                     src_port_to,
@@ -304,11 +306,17 @@ class AciFilter:
                 )
 
     def add_rule(
-        self, rule_num, protocol, src_port_from, src_port_to, dst_port_from, dst_port_to
+        self,
+        rule_name,
+        protocol,
+        src_port_from,
+        src_port_to,
+        dst_port_from,
+        dst_port_to,
     ):
         rule = AciFilterRule(
             **{
-                "name": f"{rule_num}",
+                "name": f"{rule_name}",
                 "protocol": protocol,
                 "src_port_from": src_port_from,
                 "src_port_to": src_port_to,
@@ -318,13 +326,65 @@ class AciFilter:
         )
         self.rules.append(rule)
 
-    def to_json(self):
+    def json(self):
         # return filter in json
         j2_filter = j2_env.get_template("base_filter.jinja2")
-        rules = [rule.to_json() for rule in self.rules]
+        rules = [rule.json() for rule in self.rules]
         new_filter = j2_filter.render(FILTER_NAME=self.name, ITEMS=rules)
 
         return new_filter
+
+
+@dataclass()
+class AciContract:
+    name: str
+    filter_name: str = None
+    subjects: List[AciSubject] = field(default_factory=list)
+
+    def __contains__(self, subject):
+        for my_subject in self.subjects:
+            if my_subject.name == subject.name:
+                return True
+
+    def json(self):
+        j2_contract = j2_env.get_template("new_contract.jinja2")
+        subjects_output = [subject.json() for subject in self.subjects]
+        new_contract = j2_contract.render(
+            CONTRACT_NAME=self.name, SUBJECTS=subjects_output
+        )
+        return new_contract
+
+
+@dataclass()
+class AciTenant:
+    name: str
+    filters: List[AciFilter] = field(default_factory=list)
+    contracts: List[AciContract] = field(default_factory=list)
+
+    def __post_init__(self):
+        if self.filters is None or self.contracts is None:
+            print("Error, Unable to initialize tenant")
+            sys.exit()
+
+    def json(self):
+        pass
+
+    def to_file(self, filename: str) -> None:
+        j2_tenant_base = j2_env.get_template("base_tenant.jinja2")
+        filter_output = [a_filter.json() for a_filter in self.filters]
+        contract_ouput = [contract.json() for contract in self.contracts]
+        children = filter_output + contract_ouput
+        with open(filename, "w") as fout:
+            fout.write(j2_tenant_base.render(CHILDREN=children))
+
+        print(f"{filename} created.")
+
+    #
+    #
+    # items = [filter.json() for filter in new_filters]
+    # for contract_name in new_subjects.keys():
+    #     subjects = new_subjects[contract_name]["subjects"]
+    #     items.append(j2_contract_base.render(CONTRACT_NAME=contract_name, SUBJECTS=subjects))
 
 
 @dataclass()

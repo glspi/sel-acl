@@ -1,26 +1,72 @@
-import os
+import json
 import sys
 
-import sel_aci.objs
 from sel_aci.aci import ACI
-from sel_aci.objs import AciContract, AciSubject, CustomWorksheet, set_j2_env
+from sel_aci.objs import AciContract, AciSubject, AciTenant, CustomWorksheet, set_j2_env
 
 
 def get_aci_objects(aci: str, username: str, password: str, tenant: str) -> None:
     aci = ACI(aci=aci, username=username, password=password)
     aci.login()
 
-    for obj_type in ("filters", "contracts"):
-        objs = aci.get_object_names(tenant=tenant, obj_type=obj_type)
-        filename = f"{obj_type}-{tenant}.txt"
+    # Create Filters file
+    filters = aci.get_object_names(tenant=tenant, obj_type="filters")
+    filename = f"existing-filter-names--{tenant}.txt"
+    with open(filename, "w") as fout:
+        for name in filters:
+            fout.write(f"{name}\n")
+    print(f"Filters created at: {filename}")
 
-        with open(filename, "w") as fin:
-            for name in objs:
-                fin.write(f"{name}\n")
-        print(f"{obj_type.capitalize()} created at: {filename}")
+    # Create Contracts file
+    contracts = aci.get_object_names(tenant=tenant, obj_type="contracts")
+    filename = f"existing-contracts--{tenant}.txt"
+    with open(filename, "w") as fout:
+        fout.write(json.dumps(contracts))
+    print(f"Contracts created at: {filename}")
 
 
-def main(excel_filename, filter_names, contract_names, version):
+def parse_aci_data(aci_data, existing_filter_names, existing_contracts):
+    new_filters = []
+    new_contracts_dict = {}
+
+    # Begin Parsing
+    for line in aci_data:
+        my_filter = line.filters()
+        contract_name = line.contract_name
+
+        # Create filter
+        if my_filter.name not in existing_filter_names:
+            new_filters.append(my_filter)
+            existing_filter_names.append(my_filter.name)
+
+        # Create Subject
+        new_subject = AciSubject(
+            filter_name=my_filter.name,
+            action=line.action,
+            protocol=line.protocol,
+            description=line.subject_description,
+        )
+        # Check it doesn't already exist for this contract
+        if contract_name in existing_contracts.keys():
+            if new_subject.name in existing_contracts[contract_name]:
+                # Don't need to create it
+                continue
+        else:
+            # Add to newly created or create now
+            if contract_name not in new_contracts_dict.keys():
+                rg_new_contract = AciContract(
+                    name=contract_name, subjects=[new_subject]
+                )
+                new_contracts_dict[contract_name] = rg_new_contract
+            else:
+                if new_subject not in new_contracts_dict[contract_name]:
+                    new_contracts_dict[contract_name].subjects.append(new_subject)
+    # Turn the dict into list of AciContract's
+    new_contracts = [contract for contract in new_contracts_dict.values()]
+    return new_filters, new_contracts
+
+
+def main(excel_filename, filter_names, contract_names, output_file, version):
 
     # Create File
     ws = CustomWorksheet(excel_filename=excel_filename)
@@ -35,74 +81,15 @@ def main(excel_filename, filter_names, contract_names, version):
         print("Error pulling contracts from file.")
         sys.exit()
 
-    new_filters = []
-    new_contracts = []
-    new_subjects = {}
-    for line in aci_data:
-        my_filter = line.filters()
-        contract_name = line.contract_name
-        # Create filter
-        if my_filter.name not in filter_names:
-            new_filter = my_filter.to_json()
-            new_filters.append(new_filter)
-            filter_names.append(my_filter.name)
-
-        # Create contract if needed
-        if contract_name not in contract_names:
-            new_contract = AciContract(name=contract_name, filter_name=my_filter.name)
-            new_contracts.append(new_contract.to_json())
-            contract_names.append(contract_name)
-
-        # Create new subject
-
-        new_subject = AciSubject(
-            filter_name=my_filter.name,
-            action=line.action,
-            protocol=line.protocol,
-            description=line.subject_description,
-        )
-
-        if not new_subjects.get(contract_name):
-            new_subjects[contract_name] = {
-                "subjects": [new_subject.to_json()],
-                "names": [new_subject.name],
-            }
-        elif new_subject.name not in new_subjects[contract_name]["names"]:
-            new_subjects[contract_name]["subjects"].append(new_subject.to_json())
-            new_subjects[contract_name]["names"].append(new_subject.name)
-
-        # association = get_epg_provider_consumers(contract, contract_name, filter_name)
+    new_filters, new_contracts = parse_aci_data(aci_data, filter_names, contract_names)
 
     # Begin output
     print("\n")
-    j2_tenant_base = sel_aci.objs.j2_env.get_template("base_tenant.jinja2")
-    os.makedirs("aci-json", exist_ok=True)
-
-    # Create JSON for Filters
-    if new_contracts:
-        filename = f"aci-json/new-filters-{tenant}.json"
-        print(f"New filters found, creating at: {filename}")
-        with open(filename, "w") as fout:
-            fout.write(j2_tenant_base.render(ITEMS=new_filters))
-
-    # Create JSON for Contracts
-    if new_contracts:
-        filename = f"aci-json/new-contracts-{tenant}.json"
-        print(f"New contracts found, creating at: {filename}")
-        with open(filename, "w") as fout:
-            fout.write(j2_tenant_base.render(ITEMS=new_contracts))
-
-    # Create JSON to associate EPG's to contracts
-    # no?
-
-    # Create JSON for Subjects
-    if len(new_subjects.keys()) > 0:
-        j2_contract_base = sel_aci.objs.j2_env.get_template("base_contract.jinja2")
-        for contract_name in new_subjects.keys():
-            filename = f"aci-json/new-subjects-{contract_name}.json"
-            print(f"New subjects found, creating at: {filename}")
-            subjects = new_subjects[contract_name]["subjects"]
-            with open(filename, "w") as fout:
-                fout.write(j2_contract_base.render(ITEMS=subjects))
+    if not output_file:
+        filename = f"{tenant}-new-objects.json"
+    else:
+        filename = f"{output_file}"
+    output = AciTenant(name=tenant, filters=new_filters, contracts=new_contracts)
+    output.to_file(filename)
 
     print("Done.\n")

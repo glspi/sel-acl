@@ -62,7 +62,7 @@ class ACI:
             url += "vzFilter"
             vzType = "vzFilter"
         elif obj_type == "contracts":
-            url += "vzBrCP"
+            url += "vzBrCP&rsp-subtree=children"
             vzType = "vzBrCP"
         else:
             print(f"Unsupported object type: {obj_type}")
@@ -87,13 +87,25 @@ class ACI:
             try:
                 objs = []
                 temp = response.json()["imdata"]
-                for obj in temp:
-                    name = obj[vzType]["attributes"]["name"]
-                    objs.append(name)
-            except Exception:
+                if obj_type == "filters":
+                    for obj in temp:
+                        name = obj[vzType]["attributes"]["name"]
+                        objs.append(name)
+                    return objs
+                elif obj_type == "contracts":
+                    contracts = {}
+                    for obj in temp:
+                        name = obj[vzType]["attributes"]["name"]
+                        contracts[name] = []
+                        for child in obj[vzType]["children"]:
+                            if child.get("vzSubj"):
+                                contracts[name].append(
+                                    child["vzSubj"]["attributes"]["name"]
+                                )
+                    return contracts
+            except Exception as e:
                 print("Response:")
                 print(response.json())
                 print(f"Unknown error getting {obj_type}, exiting..")
+                print(e)
                 sys.exit()
-
-            return objs

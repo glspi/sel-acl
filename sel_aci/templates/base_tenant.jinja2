@@ -6,8 +6,8 @@
                 "attributes": {
                 },
                 "children": [
-                    {% for ITEM in ITEMS %}
-                    {{ ITEM|indent(20) }}{{ "," if not loop.last }}
+                    {% for CHILD in CHILDREN %}
+                    {{ CHILD|indent(20) }}{{ "," if not loop.last }}
                     {% endfor %}
                 ]
             }

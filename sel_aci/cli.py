@@ -1,6 +1,6 @@
 """sel_aci.cli"""
+import json
 import sys
-from dataclasses import dataclass
 from typing import Dict, List, Optional
 
 import typer
@@ -20,8 +20,8 @@ def create(
         None,
         "--filename",
         "-f",
-        prompt="Excel Filename for List of VLAN's/ACL's/tenants: ",
-        metavar="Excel Filename for List of VLAN's/ACL's/tenants",
+        prompt="Excel Filename with contract output (created by sel-acl): ",
+        metavar="Excel Filename with contract output (created by sel-acl):",
     ),
     filter_file: Optional[str] = typer.Option(
         None,
@@ -34,6 +34,9 @@ def create(
         "--contracts",
         "-c",
         metavar="Optional: Text file containing existing contract names",
+    ),
+    output_file: Optional[str] = typer.Option(
+        None, "--output", "-o", metavar="Optional output filename."
     ),
     version: Optional[str] = typer.Option(
         "4.2", "--version", "-v", metavar="Optional: Set to '5.2' for ACI 5.2 output."
@@ -51,16 +54,17 @@ def create(
         except FileNotFoundError:
             print("Filter list file not found!")
 
-    contract_names = []
+    contract_names = {}
     if contract_file:
         try:
             with open(contract_file) as fin:
-                for line in fin.readlines():
-                    contract_names.append(line.strip())
+                contract_names = json.loads(fin.read())
+                # for line in fin.readlines():
+                #     contract_names.append(line.strip())
         except FileNotFoundError:
-            print("Filter list file not found!")
+            print("Contract list file not found!")
 
-    utils.main(excel_filename, filter_names, contract_names, version)
+    utils.main(excel_filename, filter_names, contract_names, output_file, version)
 
 
 @app.command("get", help="Create Filter and Contract name text files.")
@@ -72,7 +76,12 @@ def get_aci_objects(
         None, "--username", "-u", prompt="ACI Username", metavar="ACI Username"
     ),
     password: Optional[str] = typer.Option(
-        None, "--password", "-p", prompt="ACI Password", metavar="ACI Password", hide_input=True
+        None,
+        "--password",
+        "-p",
+        prompt="ACI Password",
+        metavar="ACI Password",
+        hide_input=True,
     ),
     tenant: Optional[str] = typer.Option(
         None, "--tenant", "-t", prompt="ACI Tenant", metavar="ACI Tenant"
