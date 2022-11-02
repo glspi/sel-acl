@@ -86,13 +86,11 @@ def get_nexus_addrgroups_from_file(filename: str) -> Dict:
             addr_groups[name] = []
             for host in group.children:
                 match = re.match(r"\s+\d+\shost\s(.+)", host.text)
-                # breakpoint()
                 if not match:
                     match = re.match(
                         r"\s+\d+\s(\d+\.\d+\.\d+\.\d+\/\d+)(?:\s+)?",
                         host.text,
                     )
-                    # breakpoint()
                     if match:
                         network = match.group(1).strip()
                         addr_groups[name].append(network)
@@ -122,7 +120,6 @@ def get_nexus_portgroups_from_file(filename: str) -> Dict:
                         port.text,
                     )
                     if match:
-                        # breakpoint()
                         ports = f" range {str(match.groups()[0])}"  # include 'range'
                         port_groups[name].append(ports)
                 else:
@@ -422,6 +419,7 @@ def run_ns(acls: List[ACL], addr_groups, port_groups, ws, mig_data):
             mig_data=mig_data,
             addr_groups=addr_groups,
             acl=acl,
+            port_groups=port_groups
         )
         output_and_remark_acl(
             acl=acl,
