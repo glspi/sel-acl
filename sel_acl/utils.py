@@ -518,10 +518,19 @@ def ew_checker(
                     src_dest_in = ace.destination_in(
                         ip_network(subnet, strict=False), addr_groups
                     )
+                    src_epg = my_mig_data.epg
+                    src_application = my_mig_data.application
+                    dst_epg = mig_data.epg
+                    dst_application = mig_data.application
+
                 else:  # direction == "out"
                     src_dest_in = ace.source_in(
                         ip_network(subnet, strict=False), addr_groups
                     )
+                    src_epg = mig_data.epg
+                    src_application = mig_data.application
+                    dst_epg = my_mig_data.epg
+                    dst_application = my_mig_data.application
 
                 if src_dest_in == "subnet":
                     ace.set_cidrs_ports(
@@ -530,10 +539,10 @@ def ew_checker(
                     contract = ace.to_contract(
                         acl=acl,
                         tenant=mig_data.tenant,
-                        src_epg=my_mig_data.epg,
-                        dst_epg=mig_data.epg,
-                        src_application=my_mig_data.application,
-                        dst_application=mig_data.application,
+                        src_epg=src_epg,
+                        dst_epg=dst_epg,
+                        src_application=src_application,
+                        dst_application=dst_application,
                         remark=acl.aces[index - 1].remark,
                     )
                     ew_aces.append(ace)
