@@ -88,6 +88,7 @@ def test_east_west():
                 mig_data=dict["mig_data"],
                 addr_groups=dict["addr_groups"],
                 acl=test_acl,
+                port_groups=dict["port_groups"]
             )
 
             correct_contract = getattr(correct_asserts, f"vlan{num}_contracts")
